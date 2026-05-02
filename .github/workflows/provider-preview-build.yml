@@ -54,6 +54,8 @@ jobs:
 
       - name: Setup Android signing
         env:
+          # Nagram keeps the release keystore in the repo and credentials in LOCAL_PROPERTIES.
+          # Also accept split secrets so this fork can reuse the same credentials directly.
           KEYSTORE_B64: ${{ secrets.NAGRAM_RELEASE_KEYSTORE || secrets.KEYSTORE }}
           NAGRAM_LOCAL_PROPERTIES_B64: ${{ secrets.NAGRAM_LOCAL_PROPERTIES || secrets.LOCAL_PROPERTIES }}
           SERVICE_JSON_B64: ${{ secrets.SERVICE_JSON }}
@@ -61,29 +63,63 @@ jobs:
           STORE_PASSWORD: ${{ secrets.NAGRAM_STORE_PASSWORD || secrets.STORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.NAGRAM_KEY_PASSWORD || secrets.KEY_PASSWORD }}
         run: |
-          if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 --decode > android/app/keystore.jks
+          set -euo pipefail
 
-            if [ -n "$NAGRAM_LOCAL_PROPERTIES_B64" ]; then
-              echo "$NAGRAM_LOCAL_PROPERTIES_B64" | base64 --decode > /tmp/nagram-local.properties
-              KEY_ALIAS="${KEY_ALIAS:-$(sed -n 's/^ALIAS_NAME=//p' /tmp/nagram-local.properties | tail -n1)}"
-              STORE_PASSWORD="${STORE_PASSWORD:-$(sed -n 's/^KEYSTORE_PASS=//p' /tmp/nagram-local.properties | tail -n1)}"
-              KEY_PASSWORD="${KEY_PASSWORD:-$(sed -n 's/^ALIAS_PASS=//p' /tmp/nagram-local.properties | tail -n1)}"
-            fi
+          trim_secret() {
+            printf '%s' "$1" | tr -d '\r\n'
+          }
 
-            if [ -n "$KEY_ALIAS" ] && [ -n "$STORE_PASSWORD" ] && [ -n "$KEY_PASSWORD" ] && \
-              keytool -list -keystore android/app/keystore.jks -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null 2>&1; then
-              {
-                echo "keyAlias=$KEY_ALIAS"
-                echo "storePassword=$STORE_PASSWORD"
-                echo "keyPassword=$KEY_PASSWORD"
-              } >> android/local.properties
-            else
-              echo "::warning::Nagram keystore was provided, but matching signing properties were not available or did not validate. Building with FlClash debug signing instead."
-              rm -f android/app/keystore.jks android/local.properties
-            fi
+          signing_requested=false
+
+          if [ -n "${NAGRAM_LOCAL_PROPERTIES_B64:-}" ]; then
+            signing_requested=true
+            echo "$NAGRAM_LOCAL_PROPERTIES_B64" | base64 --decode > /tmp/nagram-local.properties
+            KEY_ALIAS="${KEY_ALIAS:-$(sed -n 's/^ALIAS_NAME=//p' /tmp/nagram-local.properties | tail -n1)}"
+            STORE_PASSWORD="${STORE_PASSWORD:-$(sed -n 's/^KEYSTORE_PASS=//p' /tmp/nagram-local.properties | tail -n1)}"
+            KEY_PASSWORD="${KEY_PASSWORD:-$(sed -n 's/^ALIAS_PASS=//p' /tmp/nagram-local.properties | tail -n1)}"
           fi
-          if [ -n "$SERVICE_JSON_B64" ]; then
+
+          KEY_ALIAS="$(trim_secret "${KEY_ALIAS:-}")"
+          STORE_PASSWORD="$(trim_secret "${STORE_PASSWORD:-}")"
+          KEY_PASSWORD="$(trim_secret "${KEY_PASSWORD:-}")"
+
+          if [ -n "${KEYSTORE_B64:-}" ]; then
+            signing_requested=true
+            echo "$KEYSTORE_B64" | base64 --decode > android/app/keystore.jks
+          fi
+
+          validate_signing() {
+            [ -s android/app/keystore.jks ] && \
+              [ -n "$KEY_ALIAS" ] && [ -n "$STORE_PASSWORD" ] && [ -n "$KEY_PASSWORD" ] && \
+              keytool -list -keystore android/app/keystore.jks -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null 2>&1
+          }
+
+          # If the copied keystore secret is absent or does not match, use Nagram's public
+          # release keystore and validate it against the Nagram credentials.
+          if ! validate_signing && [ -n "$KEY_ALIAS$STORE_PASSWORD$KEY_PASSWORD" ]; then
+            signing_requested=true
+            curl -fsSL --retry 3 \
+              https://raw.githubusercontent.com/NextAlone/Nagram/dev/TMessagesProj/release.keystore \
+              -o android/app/keystore.jks
+          fi
+
+          if validate_signing; then
+            {
+              echo "keyAlias=$KEY_ALIAS"
+              echo "storePassword=$STORE_PASSWORD"
+              echo "keyPassword=$KEY_PASSWORD"
+            } >> android/local.properties
+            echo "Nagram Android signing configured."
+          elif [ "$signing_requested" = true ] || [ -n "$KEY_ALIAS$STORE_PASSWORD$KEY_PASSWORD" ]; then
+            echo "::error::Nagram signing secrets were provided, but they do not validate against the Nagram release keystore."
+            rm -f android/app/keystore.jks android/local.properties
+            exit 1
+          else
+            echo "::warning::No Android signing secrets were provided. Building with FlClash debug signing instead."
+            rm -f android/app/keystore.jks android/local.properties
+          fi
+
+          if [ -n "${SERVICE_JSON_B64:-}" ]; then
             echo "$SERVICE_JSON_B64" | base64 --decode > android/app/google-services.json
           fi
 
