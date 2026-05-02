@@ -1,0 +1,96 @@
+name: provider preview build
+
+on:
+  push:
+    branches:
+      - feat/provider-yaml-preview
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: Android ABI to build
+        required: false
+        default: arm64
+        type: choice
+        options:
+          - arm64
+          - arm
+          - amd64
+          - all
+      env:
+        description: App environment
+        required: false
+        default: pre
+        type: choice
+        options:
+          - pre
+          - stable
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android ${{ github.event.inputs.arch || 'arm64' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.0'
+          cache-dependency-path: |
+            core/go.sum
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.35.7
+          cache: true
+
+      - name: Setup Android signing
+        env:
+          KEYSTORE_B64: ${{ secrets.NAGRAM_RELEASE_KEYSTORE || secrets.KEYSTORE }}
+          SERVICE_JSON_B64: ${{ secrets.SERVICE_JSON }}
+          KEY_ALIAS: ${{ secrets.NAGRAM_KEY_ALIAS || secrets.KEY_ALIAS || 'androidkey' }}
+          STORE_PASSWORD: ${{ secrets.NAGRAM_STORE_PASSWORD || secrets.STORE_PASSWORD || 'android' }}
+          KEY_PASSWORD: ${{ secrets.NAGRAM_KEY_PASSWORD || secrets.KEY_PASSWORD || 'android' }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 --decode > android/app/keystore.jks
+            {
+              echo "keyAlias=$KEY_ALIAS"
+              echo "storePassword=$STORE_PASSWORD"
+              echo "keyPassword=$KEY_PASSWORD"
+            } >> android/local.properties
+          fi
+          if [ -n "$SERVICE_JSON_B64" ]; then
+            echo "$SERVICE_JSON_B64" | base64 --decode > android/app/google-services.json
+          fi
+
+      - name: Get Flutter dependency
+        run: |
+          flutter --version
+          flutter pub get
+
+      - name: Build Android artifact
+        run: |
+          BUILD_ARCH="${{ github.event.inputs.arch || 'arm64' }}"
+          BUILD_ENV="${{ github.event.inputs.env || 'pre' }}"
+          if [ "$BUILD_ARCH" = "all" ]; then
+            dart setup.dart android --env "$BUILD_ENV"
+          else
+            dart setup.dart android --arch "$BUILD_ARCH" --env "$BUILD_ENV"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlClash-${{ github.event.inputs.arch || 'arm64' }}-${{ github.sha }}
+          path: ./dist
+          if-no-files-found: error
+          overwrite: true

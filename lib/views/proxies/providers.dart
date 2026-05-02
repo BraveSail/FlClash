@@ -6,6 +6,7 @@ import 'package:fl_clash/controller.dart';
 import 'package:fl_clash/core/core.dart';
 import 'package:fl_clash/models/common.dart';
 import 'package:fl_clash/models/core.dart';
+import 'package:fl_clash/pages/editor.dart';
 import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/widgets/widgets.dart';
@@ -107,6 +108,19 @@ class ProviderItem extends StatelessWidget {
     appController.updateGroupsDebounce();
   }
 
+  Future<void> _handlePreviewProvider(BuildContext context) async {
+    final path = provider.path;
+    if (path == null) return;
+
+    await appController.safeRun<void>(() async {
+      final content = await File(path).readAsString();
+      if (!context.mounted) return;
+
+      final previewPage = EditorPage(title: provider.name, content: content);
+      BaseNavigator.push<String>(context, previewPage);
+    }, silence: false);
+  }
+
   String _buildProviderDesc() {
     final baseInfo = provider.updateAt.lastUpdateTimeDesc;
     final count = provider.count;
@@ -136,6 +150,14 @@ class ProviderItem extends StatelessWidget {
             spacing: 12,
             runAlignment: WrapAlignment.center,
             children: [
+              if (provider.path != null)
+                CommonChip(
+                  avatar: const Icon(Icons.visibility_outlined),
+                  label: appLocalizations.preview,
+                  onPressed: () {
+                    _handlePreviewProvider(context);
+                  },
+                ),
               CommonChip(
                 avatar: const Icon(Icons.upload),
                 label: appLocalizations.upload,
