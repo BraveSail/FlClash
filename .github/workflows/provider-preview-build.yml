@@ -1,9 +1,6 @@
 name: provider preview build
 
 on:
-  push:
-    branches:
-      - feat/provider-yaml-preview
   workflow_dispatch:
     inputs:
       arch:
