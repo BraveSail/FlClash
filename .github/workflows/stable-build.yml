@@ -1,4 +1,4 @@
-name: stable android build
+name: stable build
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - feat/provider-yaml-preview
   workflow_dispatch:
     inputs:
-      arch:
+      android_arch:
         description: Android ABI to build
         required: false
         default: arm64
@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   android:
-    name: Android stable ${{ inputs.arch || 'arm64' }}
+    name: Android stable ${{ inputs.android_arch || 'arm64' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -86,7 +86,7 @@ jobs:
 
       - name: Build Android stable artifact
         env:
-          BUILD_ARCH: ${{ inputs.arch || 'arm64' }}
+          BUILD_ARCH: ${{ inputs.android_arch || 'arm64' }}
         run: |
           set -euo pipefail
           if [ "$BUILD_ARCH" = "all" ]; then
@@ -95,10 +95,49 @@ jobs:
             dart setup.dart android --arch "$BUILD_ARCH" --env stable
           fi
 
-      - name: Upload artifact
+      - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FlClash-stable-${{ inputs.arch || 'arm64' }}-${{ github.sha }}
+          name: FlClash-stable-android-${{ inputs.android_arch || 'arm64' }}-${{ github.sha }}
+          path: ./dist
+          if-no-files-found: error
+          overwrite: true
+
+  windows:
+    name: Windows stable amd64
+    runs-on: Windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.0'
+          cache-dependency-path: |
+            core/go.sum
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.35.7
+          cache: true
+
+      - name: Get Flutter dependency
+        run: |
+          flutter --version
+          flutter pub get
+
+      - name: Build Windows stable artifact
+        run: dart setup.dart windows --arch amd64 --env stable
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlClash-stable-windows-amd64-${{ github.sha }}
           path: ./dist
           if-no-files-found: error
           overwrite: true
