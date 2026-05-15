@@ -450,6 +450,8 @@ class MapInputPage extends ConsumerStatefulWidget {
   final Widget Function(MapEntry<String, String> item)? leadingBuilder;
   final String? keyLabel;
   final String? valueLabel;
+  final Set<String> disabledKeys;
+  final ValueChanged<String>? onToggle;
 
   const MapInputPage({
     super.key,
@@ -460,6 +462,8 @@ class MapInputPage extends ConsumerStatefulWidget {
     this.keyLabel,
     this.valueLabel,
     this.subtitleBuilder,
+    this.disabledKeys = const {},
+    this.onToggle,
   });
 
   @override
@@ -579,6 +583,8 @@ class _MapInputPageState extends ConsumerState<MapInputPage> {
   }) {
     final isFirst = index == 0;
     final isLast = index == totalLength - 1;
+    final hasToggle = widget.onToggle != null;
+    final isEnabled = !widget.disabledKeys.contains(value.key);
     return ReorderableDelayedDragStartListener(
       key: ValueKey(value),
       index: index,
@@ -601,6 +607,30 @@ class _MapInputPageState extends ConsumerState<MapInputPage> {
         onPressed: () {
           _handleAddOrEdit(value);
         },
+        trailing: hasToggle
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Switch(
+                    value: isEnabled,
+                    onChanged: (_) {
+                      widget.onToggle!(value.key);
+                    },
+                  ),
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CommonCheckBox(
+                      value: isSelected,
+                      isCircle: true,
+                      onChanged: (_) {
+                        _handleSelected(value);
+                      },
+                    ),
+                  ),
+                ],
+              )
+            : null,
       ),
     );
   }

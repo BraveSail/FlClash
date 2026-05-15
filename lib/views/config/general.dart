@@ -204,6 +204,11 @@ class HostsItem extends ConsumerWidget {
     final hosts = ref.watch(
       patchClashConfigProvider.select((state) => state.hosts),
     );
+    final disabledHosts = ref.watch(
+      patchClashConfigProvider.select(
+        (state) => state.disabledHosts.toSet(),
+      ),
+    );
     return ListItem.open(
       leading: const Icon(Icons.view_list_outlined),
       title: const Text('Hosts'),
@@ -215,6 +220,21 @@ class HostsItem extends ConsumerWidget {
           map: hosts,
           titleBuilder: (item) => Text(item.key),
           subtitleBuilder: (item) => Text(item.value),
+          disabledKeys: disabledHosts,
+          onToggle: (key) {
+            final current = ref
+                .read(patchClashConfigProvider)
+                .disabledHosts;
+            final next = List<String>.from(current);
+            if (next.contains(key)) {
+              next.remove(key);
+            } else {
+              next.add(key);
+            }
+            ref
+                .read(patchClashConfigProvider.notifier)
+                .update((state) => state.copyWith(disabledHosts: next));
+          },
         ),
         onChanged: (value) {
           ref

@@ -384,6 +384,11 @@ _ClashConfig _$ClashConfigFromJson(Map<String, dynamic> json) => _ClashConfig(
         (k, e) => MapEntry(k, e as String),
       ) ??
       const {},
+  disabledHosts:
+      (json['disabled-hosts'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList() ??
+      const [],
 );
 
 Map<String, dynamic> _$ClashConfigToJson(_ClashConfig instance) =>
@@ -411,6 +416,7 @@ Map<String, dynamic> _$ClashConfigToJson(_ClashConfig instance) =>
       'external-controller':
           _$ExternalControllerStatusEnumMap[instance.externalController]!,
       'hosts': instance.hosts,
+      'disabled-hosts': instance.disabledHosts,
     };
 
 const _$ModeEnumMap = {

@@ -697,6 +697,7 @@ class CommonSelectedInputListItem extends StatelessWidget {
   final bool isLast;
   final bool isDecorator;
   final Widget? leading;
+  final Widget? trailing;
 
   const CommonSelectedInputListItem({
     super.key,
@@ -710,6 +711,7 @@ class CommonSelectedInputListItem extends StatelessWidget {
     this.isDecorator = false,
     this.subtitle,
     this.leading,
+    this.trailing,
   });
 
   @override
@@ -731,17 +733,18 @@ class CommonSelectedInputListItem extends StatelessWidget {
               onPressed();
             },
       subtitle: subtitle,
-      trailing: SizedBox(
-        width: 24,
-        height: 24,
-        child: CommonCheckBox(
-          value: isSelected,
-          isCircle: true,
-          onChanged: (_) {
-            onSelected();
-          },
-        ),
-      ),
+      trailing: trailing ??
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: CommonCheckBox(
+              value: isSelected,
+              isCircle: true,
+              onChanged: (_) {
+                onSelected();
+              },
+            ),
+          ),
     );
   }
 }

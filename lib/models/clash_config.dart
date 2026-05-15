@@ -476,6 +476,7 @@ abstract class ClashConfig with _$ClashConfig {
     @JsonKey(name: 'external-controller')
     ExternalControllerStatus externalController,
     @Default({}) Map<String, String> hosts,
+    @Default([]) @JsonKey(name: 'disabled-hosts') List<String> disabledHosts,
   }) = _ClashConfig;
 
   factory ClashConfig.fromJson(Map<String, Object?> json) =>

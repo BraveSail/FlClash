@@ -179,7 +179,9 @@ Future<Map<String, dynamic>> _makeRealProfileTask(
   if (rawConfig['hosts'] == null) {
     rawConfig['hosts'] = {};
   }
+  final disabledHosts = realPatchConfig.disabledHosts.toSet();
   for (final host in realPatchConfig.hosts.entries) {
+    if (disabledHosts.contains(host.key)) continue;
     rawConfig['hosts'][host.key] = host.value.splitByMultipleSeparators;
   }
   if (rawConfig['dns'] == null) {
