@@ -451,7 +451,7 @@ class MapInputPage extends ConsumerStatefulWidget {
   final String? keyLabel;
   final String? valueLabel;
   final Set<String> disabledKeys;
-  final ValueChanged<String>? onToggle;
+  final ValueChanged<Set<String>>? onDisabledChanged;
 
   const MapInputPage({
     super.key,
@@ -463,7 +463,7 @@ class MapInputPage extends ConsumerStatefulWidget {
     this.valueLabel,
     this.subtitleBuilder,
     this.disabledKeys = const {},
-    this.onToggle,
+    this.onDisabledChanged,
   });
 
   @override
@@ -473,6 +473,7 @@ class MapInputPage extends ConsumerStatefulWidget {
 class _MapInputPageState extends ConsumerState<MapInputPage> {
   List<MapEntry<String, String>> _items = [];
   late final List<MapEntry<String, String>> _originItems;
+  late Set<String> _disabledKeys;
   final _key = utils.id;
 
   @override
@@ -480,6 +481,18 @@ class _MapInputPageState extends ConsumerState<MapInputPage> {
     super.initState();
     _items = List<MapEntry<String, String>>.from(widget.map.entries);
     _originItems = List<MapEntry<String, String>>.from(_items);
+    _disabledKeys = Set<String>.from(widget.disabledKeys);
+  }
+
+  void _handleToggle(String key) {
+    setState(() {
+      if (_disabledKeys.contains(key)) {
+        _disabledKeys = Set<String>.from(_disabledKeys)..remove(key);
+      } else {
+        _disabledKeys = Set<String>.from(_disabledKeys)..add(key);
+      }
+    });
+    widget.onDisabledChanged?.call(_disabledKeys);
   }
 
   void _handleReorder(int oldIndex, newIndex) {
@@ -583,8 +596,8 @@ class _MapInputPageState extends ConsumerState<MapInputPage> {
   }) {
     final isFirst = index == 0;
     final isLast = index == totalLength - 1;
-    final hasToggle = widget.onToggle != null;
-    final isEnabled = !widget.disabledKeys.contains(value.key);
+    final hasToggle = widget.onDisabledChanged != null;
+    final isEnabled = !_disabledKeys.contains(value.key);
     return ReorderableDelayedDragStartListener(
       key: ValueKey(value),
       index: index,
@@ -614,7 +627,7 @@ class _MapInputPageState extends ConsumerState<MapInputPage> {
                   Switch(
                     value: isEnabled,
                     onChanged: (_) {
-                      widget.onToggle!(value.key);
+                      _handleToggle(value.key);
                     },
                   ),
                   SizedBox(

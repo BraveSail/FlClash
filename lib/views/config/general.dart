@@ -221,19 +221,10 @@ class HostsItem extends ConsumerWidget {
           titleBuilder: (item) => Text(item.key),
           subtitleBuilder: (item) => Text(item.value),
           disabledKeys: disabledHosts,
-          onToggle: (key) {
-            final current = ref
-                .read(patchClashConfigProvider)
-                .disabledHosts;
-            final next = List<String>.from(current);
-            if (next.contains(key)) {
-              next.remove(key);
-            } else {
-              next.add(key);
-            }
+          onDisabledChanged: (value) {
             ref
                 .read(patchClashConfigProvider.notifier)
-                .update((state) => state.copyWith(disabledHosts: next));
+                .update((state) => state.copyWith(disabledHosts: value.toList()));
           },
         ),
         onChanged: (value) {
