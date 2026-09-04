@@ -132,7 +132,7 @@ jobs:
           flutter pub get
 
       - name: Build Windows stable artifact
-        run: dart setup.dart windows --arch amd64 --env stable
+        run: dart setup.dart windows --env stable
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
