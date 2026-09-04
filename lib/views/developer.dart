@@ -1,8 +1,9 @@
 import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/controller.dart';
 import 'package:fl_clash/core/controller.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/common.dart';
+import 'package:fl_clash/providers/action.dart';
+import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/widgets/widgets.dart';
@@ -13,6 +14,7 @@ class DeveloperView extends ConsumerWidget {
   const DeveloperView({super.key});
 
   Widget _getDeveloperList(BuildContext context, WidgetRef ref) {
+    final appLocalizations = context.appLocalizations;
     return generateSectionV2(
       title: appLocalizations.options,
       items: [
@@ -28,15 +30,17 @@ class DeveloperView extends ConsumerWidget {
           minVerticalPadding: 12,
           onTap: () {
             for (int i = 0; i < 1000; i++) {
-              appController.addLog(
-                Log.app(
-                  '[$i]${utils.generateRandomString(maxLength: 200, minLength: 20)}',
-                ),
-              );
+              globalState.container
+                  .read(logsProvider.notifier)
+                  .add(
+                    Log.app(
+                      '[$i]${utils.generateRandomString(maxLength: 200, minLength: 20)}',
+                    ),
+                  );
             }
           },
         ),
-        if (globalState.isPre)
+        if (globalState.canCrashCore)
           ListItem(
             title: Text(appLocalizations.crashTest),
             minVerticalPadding: 12,
@@ -60,23 +64,18 @@ class DeveloperView extends ConsumerWidget {
             if (res != true) {
               return;
             }
-            await appController.handleClear();
+            await globalState.container
+                .read(storeActionProvider.notifier)
+                .handleClear();
           },
         ),
-        // ListItem(
-        //   title: Text(appLocalizations.loadTest),
-        //   minVerticalPadding: 12,
-        //   onTap: () {
-        //     ref.read(loadingProvider.notifier).value = !ref.read(
-        //       loadingProvider,
-        //     );
-        //   },
-        // ),
         ListItem(
           title: Text(appLocalizations.pruneCache),
           minVerticalPadding: 12,
-          onTap: () {
-            appController.shakingStore();
+          onTap: () async {
+            await globalState.container
+                .read(storeActionProvider.notifier)
+                .shakingStore();
           },
         ),
       ],
@@ -85,6 +84,7 @@ class DeveloperView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final enable = ref.watch(
       appSettingProvider.select((state) => state.developerMode),
     );
@@ -97,22 +97,18 @@ class DeveloperView extends ConsumerWidget {
             CommonCard(
               type: CommonCardType.filled,
               radius: 18,
-              child: ListItem.switchItem(
+              child: ListItem.toggle(
                 padding: const EdgeInsets.only(left: 16, right: 16),
                 title: Text(appLocalizations.developerMode),
-                delegate: SwitchDelegate(
-                  value: enable,
-                  onChanged: (value) {
-                    ref
-                        .read(appSettingProvider.notifier)
-                        .update(
-                          (state) => state.copyWith(developerMode: value),
-                        );
-                  },
-                ),
+                value: enable,
+                onChanged: (value) {
+                  ref
+                      .read(appSettingProvider.notifier)
+                      .update((state) => state.copyWith(developerMode: value));
+                },
               ),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             _getDeveloperList(context, ref),
           ],
         ),

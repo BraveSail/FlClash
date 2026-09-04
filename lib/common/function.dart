@@ -1,13 +1,12 @@
 import 'dart:async';
 
 import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/enum/enum.dart';
 
 class Debouncer {
-  final Map<FunctionTag, Timer?> _operations = {};
+  final Map<dynamic, Timer?> _operations = {};
 
   void call(
-    FunctionTag tag,
+    dynamic tag,
     Function func, {
     List<dynamic>? args,
     Duration? duration,
@@ -29,11 +28,27 @@ class Debouncer {
   }
 }
 
+class SerialTaskScheduler {
+  Future<void> _serialTail = Future<void>.value();
+
+  Future<T> run<T>(Future<T> Function() task) {
+    final completer = Completer<T>();
+    _serialTail = _serialTail.then((_) async {
+      try {
+        completer.complete(await task());
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    });
+    return completer.future;
+  }
+}
+
 class Throttler {
-  final Map<FunctionTag, Timer?> _operations = {};
+  final Map<dynamic, Timer?> _operations = {};
 
   bool call(
-    FunctionTag tag,
+    dynamic tag,
     Function func, {
     List<dynamic>? args,
     Duration duration = const Duration(milliseconds: 600),
@@ -74,10 +89,11 @@ Future<T> retry<T>({
   int attempts = 0;
   while (attempts < maxAttempts) {
     final res = await task();
+    attempts++;
     if (!retryIf(res) || attempts >= maxAttempts) {
       return res;
     }
-    attempts++;
+    await Future.delayed(delay);
   }
   throw 'retry error';
 }

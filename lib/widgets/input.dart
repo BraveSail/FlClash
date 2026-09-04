@@ -1,12 +1,15 @@
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/common.dart';
 import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/widgets/dialog.dart';
+import 'package:fl_clash/widgets/inherited.dart';
 import 'package:fl_clash/widgets/null_status.dart';
 import 'package:fl_clash/widgets/pop_scope.dart';
 import 'package:fl_clash/widgets/scaffold.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'effect.dart';
@@ -48,12 +51,10 @@ class OptionsDialog<T> extends StatelessWidget {
                     });
                   }
                   return ListItem.radio(
-                    delegate: RadioDelegate(
-                      value: option,
-                      onTab: () {
-                        Navigator.of(context).pop(option);
-                      },
-                    ),
+                    value: option,
+                    onTap: () {
+                      Navigator.of(context).pop(option);
+                    },
                     title: Text(textBuilder(option)),
                   );
                 },
@@ -80,6 +81,8 @@ class CommonCheckBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Checkbox(
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      visualDensity: VisualDensity.standard,
       shape: isCircle ? const CircleBorder() : null,
       value: value,
       onChanged: onChanged,
@@ -97,6 +100,9 @@ class InputDialog extends StatefulWidget {
   final FormFieldValidator<String>? validator;
   final AutovalidateMode? autovalidateMode;
   final bool? obscureText;
+  final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
+  final TextInputType? keyboardType;
 
   const InputDialog({
     super.key,
@@ -108,6 +114,9 @@ class InputDialog extends StatefulWidget {
     this.validator,
     this.obscureText,
     this.labelText,
+    this.maxLength,
+    this.inputFormatters,
+    this.keyboardType,
     this.autovalidateMode = AutovalidateMode.onUserInteraction,
   });
 
@@ -153,6 +162,7 @@ class _InputDialogState extends State<InputDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     return CommonDialog(
       title: title,
       actions: [
@@ -162,8 +172,13 @@ class _InputDialogState extends State<InputDialog> {
             onPressed: _handleReset,
             child: Text(appLocalizations.reset),
           ),
-          const SizedBox(width: 4),
-        ],
+        ] else
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: Text(appLocalizations.cancel),
+          ),
         TextButton(
           onPressed: _handleUpdate,
           child: Text(appLocalizations.submit),
@@ -176,8 +191,10 @@ class _InputDialogState extends State<InputDialog> {
           runSpacing: 16,
           children: [
             TextFormField(
+              maxLength: widget.maxLength,
+              inputFormatters: widget.inputFormatters,
               obscureText: widget.obscureText ?? false,
-              keyboardType: TextInputType.url,
+              keyboardType: widget.keyboardType ?? TextInputType.url,
               maxLines: widget.obscureText == true ? 1 : 5,
               minLines: 1,
               controller: _textController,
@@ -206,6 +223,7 @@ class ListInputPage extends ConsumerStatefulWidget {
   final Widget Function(String item)? subtitleBuilder;
   final Widget Function(String item)? leadingBuilder;
   final String? valueLabel;
+  final int? itemMaxLength;
 
   const ListInputPage({
     super.key,
@@ -215,6 +233,7 @@ class ListInputPage extends ConsumerStatefulWidget {
     this.leadingBuilder,
     this.valueLabel,
     this.subtitleBuilder,
+    this.itemMaxLength,
   });
 
   @override
@@ -234,18 +253,12 @@ class _ListInputPageState extends ConsumerState<ListInputPage> {
   }
 
   void _handleReorder(int oldIndex, newIndex) {
-    if (oldIndex < newIndex) {
-      newIndex -= 1;
-    }
-    final nextItems = List<String>.from(_items);
-    final item = nextItems.removeAt(oldIndex);
-    nextItems.insert(newIndex, item);
-    _items = nextItems;
+    _items = _items.copyAndReorder(oldIndex, newIndex);
     setState(() {});
   }
 
   void _handleSelected(String value) {
-    ref.read(selectedItemsProvider(_key).notifier).update((state) {
+    ref.read(itemsProvider(_key).notifier).update((state) {
       final newState = Set<String>.from(state)..addOrRemove(value);
       return newState;
     });
@@ -253,13 +266,14 @@ class _ListInputPageState extends ConsumerState<ListInputPage> {
 
   void _handleSelectAll() {
     final ids = _items.toSet();
-    ref.read(selectedItemsProvider(_key).notifier).update((selected) {
+    ref.read(itemsProvider(_key).notifier).update((selected) {
       return selected.containsAll(ids) ? {} : ids;
     });
   }
 
   Future<void> _handleAddOrEdit([String? item]) async {
-    uniqueValidator(String? value) {
+    final appLocalizations = context.appLocalizations;
+    String? uniqueValidator(String? value) {
       final index = _items.indexWhere((entry) {
         return entry == value;
       });
@@ -277,6 +291,7 @@ class _ListInputPageState extends ConsumerState<ListInputPage> {
           value: item ?? '',
           validator: uniqueValidator,
         ),
+        valueMaxLength: widget.itemMaxLength,
         title: item != null ? appLocalizations.edit : appLocalizations.add,
       ),
     );
@@ -296,18 +311,18 @@ class _ListInputPageState extends ConsumerState<ListInputPage> {
   }
 
   void _handleDelete() {
-    final selectedItems = ref.read(selectedItemsProvider(_key));
+    final selectedItems = ref.read(itemsProvider(_key));
     final newItems = _items
         .where((item) => !selectedItems.contains(item))
         .toList();
     _items = newItems;
-    ref.read(selectedItemsProvider(_key).notifier).value = {};
+    ref.read(itemsProvider(_key).notifier).value = {};
     setState(() {});
   }
 
   Future<void> _handleReset() async {
     final res = await globalState.showMessage(
-      message: TextSpan(text: appLocalizations.resetPageChangesTip),
+      message: TextSpan(text: context.appLocalizations.resetPageChangesTip),
     );
     if (res != true) {
       return;
@@ -319,46 +334,45 @@ class _ListInputPageState extends ConsumerState<ListInputPage> {
   Widget _buildItem({
     required String value,
     required int index,
-    required int totalLength,
+    required int length,
     required bool isSelected,
     required bool isEditing,
-    isDecorator = false,
   }) {
-    final isFirst = index == 0;
-    final isLast = index == totalLength - 1;
+    final position = ItemPosition.get(index, length);
     return ReorderableDelayedDragStartListener(
       key: ValueKey(value),
       index: index,
-      child: CommonSelectedInputListItem(
-        isDecorator: isDecorator,
-        isLast: isLast,
-        isFirst: isFirst,
-        title: widget.titleBuilder(value),
-        isSelected: isSelected,
-        isEditing: isEditing,
-        onSelected: () {
-          _handleSelected(value);
-        },
-        onPressed: () {
-          _handleAddOrEdit(value);
-        },
-        leading: widget.leadingBuilder != null
-            ? widget.leadingBuilder!(value)
-            : null,
-        subtitle: widget.subtitleBuilder != null
-            ? widget.subtitleBuilder!(value)
-            : null,
+      child: ItemPositionProvider(
+        position: position,
+        child: SelectedDecorationListItem(
+          title: widget.titleBuilder(value),
+          isSelected: isSelected,
+          isEditing: isEditing,
+          onSelected: () {
+            _handleSelected(value);
+          },
+          onPressed: () {
+            _handleAddOrEdit(value);
+          },
+          leading: widget.leadingBuilder != null
+              ? widget.leadingBuilder!(value)
+              : null,
+          subtitle: widget.subtitleBuilder != null
+              ? widget.subtitleBuilder!(value)
+              : null,
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final selectedItems = ref.watch(selectedItemsProvider(_key));
+    final appLocalizations = context.appLocalizations;
+    final selectedItems = ref.watch(itemsProvider(_key));
     return CommonPopScope(
       onPop: (_) {
         if (selectedItems.isNotEmpty) {
-          ref.read(selectedItemsProvider(_key).notifier).value = {};
+          ref.read(itemsProvider(_key).notifier).value = {};
           return false;
         }
         Navigator.of(context).pop(_items);
@@ -371,10 +385,10 @@ class _ListInputPageState extends ConsumerState<ListInputPage> {
             CommonMinIconButtonTheme(
               child: IconButton.filledTonal(
                 onPressed: _handleDelete,
-                icon: Icon(Icons.delete),
+                icon: const Icon(Icons.delete),
               ),
             ),
-            SizedBox(width: 2),
+            const SizedBox(width: 2),
           ] else if (!stringListEquality.equals(_items, _originItems)) ...[
             CommonMinIconButtonTheme(
               child: IconButton.filledTonal(
@@ -382,7 +396,7 @@ class _ListInputPageState extends ConsumerState<ListInputPage> {
                 icon: const Icon(Icons.replay),
               ),
             ),
-            SizedBox(width: 2),
+            const SizedBox(width: 2),
           ],
           CommonMinFilledButtonTheme(
             child: selectedItems.isNotEmpty
@@ -397,7 +411,7 @@ class _ListInputPageState extends ConsumerState<ListInputPage> {
                     child: Text(appLocalizations.add),
                   ),
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
         ],
         body: _items.isEmpty
             ? NullStatus(label: appLocalizations.noData)
@@ -415,7 +429,7 @@ class _ListInputPageState extends ConsumerState<ListInputPage> {
                   return _buildItem(
                     value: value,
                     index: index,
-                    totalLength: _items.length,
+                    length: _items.length,
                     isSelected: selectedItems.contains(value),
                     isEditing: selectedItems.isNotEmpty,
                   );
@@ -426,8 +440,7 @@ class _ListInputPageState extends ConsumerState<ListInputPage> {
                     _buildItem(
                       value: value,
                       index: index,
-                      totalLength: _items.length,
-                      isDecorator: true,
+                      length: _items.length,
                       isSelected: selectedItems.contains(value),
                       isEditing: selectedItems.isNotEmpty,
                     ),
@@ -435,7 +448,7 @@ class _ListInputPageState extends ConsumerState<ListInputPage> {
                     animation,
                   );
                 },
-                onReorder: _handleReorder,
+                onReorderItem: _handleReorder,
               ),
       ),
     );
@@ -450,6 +463,8 @@ class MapInputPage extends ConsumerStatefulWidget {
   final Widget Function(MapEntry<String, String> item)? leadingBuilder;
   final String? keyLabel;
   final String? valueLabel;
+  final int? keyMaxLength;
+  final int? valueMaxLength;
   final Set<String> disabledKeys;
   final ValueChanged<Set<String>>? onDisabledChanged;
 
@@ -462,6 +477,8 @@ class MapInputPage extends ConsumerStatefulWidget {
     this.keyLabel,
     this.valueLabel,
     this.subtitleBuilder,
+    this.keyMaxLength,
+    this.valueMaxLength,
     this.disabledKeys = const {},
     this.onDisabledChanged,
   });
@@ -496,18 +513,12 @@ class _MapInputPageState extends ConsumerState<MapInputPage> {
   }
 
   void _handleReorder(int oldIndex, newIndex) {
-    if (oldIndex < newIndex) {
-      newIndex -= 1;
-    }
-    final nextItems = List<MapEntry<String, String>>.from(_items);
-    final item = nextItems.removeAt(oldIndex);
-    nextItems.insert(newIndex, item);
-    _items = nextItems;
+    _items = _items.copyAndReorder(oldIndex, newIndex);
     setState(() {});
   }
 
   void _handleSelected(MapEntry<String, String> value) {
-    ref.read(selectedItemsProvider(_key).notifier).update((state) {
+    ref.read(itemsProvider(_key).notifier).update((state) {
       final newState = Set<String>.from(state)..addOrRemove(value.key);
       return newState;
     });
@@ -515,13 +526,14 @@ class _MapInputPageState extends ConsumerState<MapInputPage> {
 
   void _handleSelectAll() {
     final ids = _items.map((item) => item.key).toSet();
-    ref.read(selectedItemsProvider(_key).notifier).update((selected) {
+    ref.read(itemsProvider(_key).notifier).update((selected) {
       return selected.containsAll(ids) ? {} : ids;
     });
   }
 
   Future<void> _handleAddOrEdit([MapEntry<String, String>? item]) async {
-    uniqueValidator(String? value) {
+    final appLocalizations = context.appLocalizations;
+    String? uniqueValidator(String? value) {
       final index = _items.indexWhere((entry) {
         return entry.key == value;
       });
@@ -547,6 +559,8 @@ class _MapInputPageState extends ConsumerState<MapInputPage> {
       child: AddDialog(
         keyField: keyField,
         valueField: valueField,
+        keyMaxLength: widget.keyMaxLength,
+        valueMaxLength: widget.valueMaxLength,
         title: item != null ? appLocalizations.edit : appLocalizations.add,
       ),
     );
@@ -566,18 +580,18 @@ class _MapInputPageState extends ConsumerState<MapInputPage> {
   }
 
   void _handleDelete() {
-    final selectedItems = ref.read(selectedItemsProvider(_key));
+    final selectedItems = ref.read(itemsProvider(_key));
     final newItems = _items
         .where((item) => !selectedItems.contains(item.key))
         .toList();
     _items = newItems;
-    ref.read(selectedItemsProvider(_key).notifier).value = {};
+    ref.read(itemsProvider(_key).notifier).value = {};
     setState(() {});
   }
 
   Future<void> _handleReset() async {
     final res = await globalState.showMessage(
-      message: TextSpan(text: appLocalizations.resetPageChangesTip),
+      message: TextSpan(text: context.appLocalizations.resetPageChangesTip),
     );
     if (res != true) {
       return;
@@ -589,72 +603,71 @@ class _MapInputPageState extends ConsumerState<MapInputPage> {
   Widget _buildItem({
     required MapEntry<String, String> value,
     required int index,
-    required int totalLength,
+    required int length,
     required bool isSelected,
     required bool isEditing,
-    isDecorator = false,
   }) {
-    final isFirst = index == 0;
-    final isLast = index == totalLength - 1;
+    final position = ItemPosition.get(index, length);
     final hasToggle = widget.onDisabledChanged != null;
     final isEnabled = !_disabledKeys.contains(value.key);
     return ReorderableDelayedDragStartListener(
       key: ValueKey(value),
       index: index,
-      child: CommonSelectedInputListItem(
-        isDecorator: isDecorator,
-        isLast: isLast,
-        isFirst: isFirst,
-        title: widget.titleBuilder(value),
-        leading: widget.leadingBuilder != null
-            ? widget.leadingBuilder!(value)
-            : null,
-        subtitle: widget.subtitleBuilder != null
-            ? widget.subtitleBuilder!(value)
-            : null,
-        isSelected: isSelected,
-        isEditing: isEditing,
-        onSelected: () {
-          _handleSelected(value);
-        },
-        onPressed: () {
-          _handleAddOrEdit(value);
-        },
-        trailing: hasToggle
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Switch(
-                    value: isEnabled,
-                    onChanged: (_) {
-                      _handleToggle(value.key);
-                    },
-                  ),
-                  SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CommonCheckBox(
-                      value: isSelected,
-                      isCircle: true,
+      child: ItemPositionProvider(
+        position: position,
+        child: SelectedDecorationListItem(
+          title: widget.titleBuilder(value),
+          leading: widget.leadingBuilder != null
+              ? widget.leadingBuilder!(value)
+              : null,
+          subtitle: widget.subtitleBuilder != null
+              ? widget.subtitleBuilder!(value)
+              : null,
+          trailing: hasToggle
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Switch(
+                      value: isEnabled,
                       onChanged: (_) {
-                        _handleSelected(value);
+                        _handleToggle(value.key);
                       },
                     ),
-                  ),
-                ],
-              )
-            : null,
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CommonCheckBox(
+                        value: isSelected,
+                        isCircle: true,
+                        onChanged: (_) {
+                          _handleSelected(value);
+                        },
+                      ),
+                    ),
+                  ],
+                )
+              : null,
+          isSelected: isSelected,
+          isEditing: isEditing,
+          onSelected: () {
+            _handleSelected(value);
+          },
+          onPressed: () {
+            _handleAddOrEdit(value);
+          },
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final selectedItems = ref.watch(selectedItemsProvider(_key));
+    final appLocalizations = context.appLocalizations;
+    final selectedItems = ref.watch(itemsProvider(_key));
     return CommonPopScope(
       onPop: (_) {
         if (selectedItems.isNotEmpty) {
-          ref.read(selectedItemsProvider(_key).notifier).value = {};
+          ref.read(itemsProvider(_key).notifier).value = {};
           return false;
         }
         Navigator.of(context).pop(Map<String, String>.fromEntries(_items));
@@ -667,10 +680,10 @@ class _MapInputPageState extends ConsumerState<MapInputPage> {
             CommonMinIconButtonTheme(
               child: IconButton.filledTonal(
                 onPressed: _handleDelete,
-                icon: Icon(Icons.delete),
+                icon: const Icon(Icons.delete),
               ),
             ),
-            SizedBox(width: 2),
+            const SizedBox(width: 2),
           ] else if (!stringAndStringMapEntryListEquality.equals(
             _items,
             _originItems,
@@ -681,7 +694,7 @@ class _MapInputPageState extends ConsumerState<MapInputPage> {
                 icon: const Icon(Icons.replay),
               ),
             ),
-            SizedBox(width: 2),
+            const SizedBox(width: 2),
           ],
           CommonMinFilledButtonTheme(
             child: selectedItems.isNotEmpty
@@ -696,7 +709,7 @@ class _MapInputPageState extends ConsumerState<MapInputPage> {
                     child: Text(appLocalizations.add),
                   ),
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
         ],
         body: _items.isEmpty
             ? NullStatus(label: appLocalizations.noData)
@@ -714,7 +727,7 @@ class _MapInputPageState extends ConsumerState<MapInputPage> {
                   return _buildItem(
                     value: value,
                     index: index,
-                    totalLength: _items.length,
+                    length: _items.length,
                     isSelected: selectedItems.contains(value.key),
                     isEditing: selectedItems.isNotEmpty,
                   );
@@ -725,8 +738,7 @@ class _MapInputPageState extends ConsumerState<MapInputPage> {
                     _buildItem(
                       value: value,
                       index: index,
-                      totalLength: _items.length,
-                      isDecorator: true,
+                      length: _items.length,
                       isSelected: selectedItems.contains(value.key),
                       isEditing: selectedItems.isNotEmpty,
                     ),
@@ -734,7 +746,7 @@ class _MapInputPageState extends ConsumerState<MapInputPage> {
                     animation,
                   );
                 },
-                onReorder: _handleReorder,
+                onReorderItem: _handleReorder,
               ),
       ),
     );
@@ -745,12 +757,16 @@ class AddDialog extends StatefulWidget {
   final String title;
   final Field? keyField;
   final Field valueField;
+  final int? keyMaxLength;
+  final int? valueMaxLength;
 
   const AddDialog({
     super.key,
     required this.title,
     this.keyField,
     required this.valueField,
+    this.keyMaxLength,
+    this.valueMaxLength,
   });
 
   @override
@@ -795,6 +811,7 @@ class _AddDialogState extends State<AddDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     return CommonDialog(
       title: widget.title,
       actions: [
@@ -810,6 +827,9 @@ class _AddDialogState extends State<AddDialog> {
               TextFormField(
                 maxLines: 3,
                 minLines: 1,
+                inputFormatters: widget.keyMaxLength == null
+                    ? null
+                    : TextInputLimits.limit(widget.keyMaxLength!),
                 controller: _keyController,
                 decoration: InputDecoration(
                   border: const OutlineInputBorder(),
@@ -832,6 +852,9 @@ class _AddDialogState extends State<AddDialog> {
             TextFormField(
               maxLines: 3,
               minLines: 1,
+              inputFormatters: widget.valueMaxLength == null
+                  ? null
+                  : TextInputLimits.limit(widget.valueMaxLength!),
               keyboardType: TextInputType.text,
               controller: _valueController,
               decoration: InputDecoration(
@@ -860,4 +883,53 @@ class _AddDialogState extends State<AddDialog> {
       ),
     );
   }
+}
+
+class NoInputBorder extends InputBorder {
+  const NoInputBorder() : super(borderSide: BorderSide.none);
+
+  @override
+  NoInputBorder copyWith({BorderSide? borderSide}) => const NoInputBorder();
+
+  @override
+  bool get isOutline => false;
+
+  @override
+  EdgeInsetsGeometry get dimensions => EdgeInsets.zero;
+
+  @override
+  NoInputBorder scale(double t) => const NoInputBorder();
+
+  @override
+  Path getInnerPath(Rect rect, {TextDirection? textDirection}) {
+    return Path()..addRect(rect);
+  }
+
+  @override
+  Path getOuterPath(Rect rect, {TextDirection? textDirection}) {
+    return Path()..addRect(rect);
+  }
+
+  @override
+  void paintInterior(
+    Canvas canvas,
+    Rect rect,
+    Paint paint, {
+    TextDirection? textDirection,
+  }) {
+    canvas.drawRect(rect, paint);
+  }
+
+  @override
+  bool get preferPaintInterior => true;
+
+  @override
+  void paint(
+    Canvas canvas,
+    Rect rect, {
+    double? gapStart,
+    double gapExtent = 0.0,
+    double gapPercentage = 0.0,
+    TextDirection? textDirection,
+  }) {}
 }

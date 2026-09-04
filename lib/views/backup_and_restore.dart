@@ -1,10 +1,12 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:dynamic_color/dynamic_color.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/common/dav_client.dart';
-import 'package:fl_clash/controller.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
+import 'package:fl_clash/providers/action.dart';
 import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/state.dart';
@@ -12,14 +14,41 @@ import 'package:fl_clash/widgets/dialog.dart';
 import 'package:fl_clash/widgets/fade_box.dart';
 import 'package:fl_clash/widgets/input.dart';
 import 'package:fl_clash/widgets/list.dart';
+import 'package:fl_clash/widgets/loading.dart';
 import 'package:fl_clash/widgets/scaffold.dart';
 import 'package:fl_clash/widgets/text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-class BackupAndRestore extends ConsumerWidget {
+class BackupAndRestore extends ConsumerStatefulWidget {
   const BackupAndRestore({super.key});
+
+  @override
+  ConsumerState<BackupAndRestore> createState() => _BackupAndRestoreState();
+}
+
+class _BackupAndRestoreState extends ConsumerState<BackupAndRestore>
+    with UniqueKeyStateMixin {
+  final _davConnection = DAVConnectionController();
+
+  @override
+  void initState() {
+    super.initState();
+    ref.listenManual(davSettingProvider, (_, _) {
+      _updateDAVClient();
+    }, fireImmediately: true);
+  }
+
+  void _updateDAVClient() {
+    unawaited(_davConnection.update(ref.read(davSettingProvider)));
+  }
+
+  @override
+  void dispose() {
+    _davConnection.dispose();
+    super.dispose();
+  }
 
   Future<void> _showAddWebDAV(DAVProps? dav) async {
     await globalState.showCommonDialog<String>(
@@ -27,14 +56,21 @@ class BackupAndRestore extends ConsumerWidget {
     );
   }
 
-  Future<void> _backupOnWebDAV(DAVClient client) async {
-    final res = await appController.loadingRun<bool>(
+  Future<void> _backupOnWebDAV() async {
+    final appLocalizations = context.appLocalizations;
+    final res = await globalState.loadingRun<bool>(
       () async {
-        final path = await appController.backup();
+        final client = _davConnection.client;
+        if (client == null) {
+          return false;
+        }
+        final path = await globalState.container
+            .read(backupActionProvider.notifier)
+            .backup();
         if (path.isEmpty) {
           return false;
         }
-        return await client.backup(path);
+        return client.backup(path);
       },
       tag: LoadingTag.backup_restore,
       title: appLocalizations.backup,
@@ -46,15 +82,18 @@ class BackupAndRestore extends ConsumerWidget {
     );
   }
 
-  Future<void> _restoreOnWebDAV(
-    BuildContext context,
-    DAVClient client,
-    RestoreOption option,
-  ) async {
-    final res = await appController.loadingRun<bool>(
+  Future<void> _restoreOnWebDAV(RestoreOption option) async {
+    final appLocalizations = context.appLocalizations;
+    final res = await globalState.loadingRun<bool>(
       () async {
+        final client = _davConnection.client;
+        if (client == null) {
+          return false;
+        }
         await client.restore();
-        await appController.restore(option);
+        await globalState.container
+            .read(backupActionProvider.notifier)
+            .restore(option);
         return true;
       },
       tag: LoadingTag.backup_restore,
@@ -67,21 +106,21 @@ class BackupAndRestore extends ConsumerWidget {
     );
   }
 
-  Future<void> _handleRestoreOnWebDAV(
-    BuildContext context,
-    DAVClient client,
-  ) async {
+  Future<void> _handleRestoreOnWebDAV() async {
     final restoreOption = await globalState.showCommonDialog<RestoreOption>(
       child: const RestoreOptionsDialog(),
     );
     if (restoreOption == null || !context.mounted) return;
-    _restoreOnWebDAV(context, client, restoreOption);
+    _restoreOnWebDAV(restoreOption);
   }
 
-  Future<void> _backupOnLocal(BuildContext context) async {
-    final res = await appController.loadingRun<bool>(
+  Future<void> _backupOnLocal() async {
+    final appLocalizations = context.appLocalizations;
+    final res = await globalState.loadingRun<bool>(
       () async {
-        final path = await appController.backup();
+        final path = await globalState.container
+            .read(backupActionProvider.notifier)
+            .backup();
         if (path.isEmpty) {
           return false;
         }
@@ -103,13 +142,16 @@ class BackupAndRestore extends ConsumerWidget {
   }
 
   Future<void> _restoreOnLocal(RestoreOption option) async {
-    final file = await picker.pickerFile(withData: false);
+    final appLocalizations = context.appLocalizations;
+    final file = await picker.pickerFile();
     final path = file?.path;
     if (path == null) return;
     await File(path).safeCopy(await appPath.backupFilePath);
-    final res = await appController.loadingRun<bool>(
+    final res = await globalState.loadingRun<bool>(
       () async {
-        await appController.restore(option);
+        await globalState.container
+            .read(backupActionProvider.notifier)
+            .restore(option);
         return true;
       },
       tag: LoadingTag.backup_restore,
@@ -122,11 +164,11 @@ class BackupAndRestore extends ConsumerWidget {
     );
   }
 
-  Future<void> _handleRestoreOnLocal(BuildContext context) async {
+  Future<void> _handleRestoreOnLocal() async {
     final option = await globalState.showCommonDialog<RestoreOption>(
       child: const RestoreOptionsDialog(),
     );
-    if (option == null || !context.mounted) return;
+    if (option == null || !mounted) return;
     _restoreOnLocal(option);
   }
 
@@ -139,13 +181,13 @@ class BackupAndRestore extends ConsumerWidget {
         .update((state) => state?.copyWith(fileName: value));
   }
 
-  Future<void> _handleUpdateRestoreStrategy(WidgetRef ref) async {
+  Future<void> _handleUpdateRestoreStrategy() async {
     final restoreStrategy = ref.read(
       appSettingProvider.select((state) => state.restoreStrategy),
     );
     final res = await globalState.showCommonDialog(
       child: OptionsDialog<RestoreStrategy>(
-        title: appLocalizations.restoreStrategy,
+        title: currentAppLocalizations.restoreStrategy,
         options: RestoreStrategy.values,
         textBuilder: (mode) => Intl.message('restoreStrategy_${mode.name}'),
         value: restoreStrategy,
@@ -160,10 +202,10 @@ class BackupAndRestore extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, ref) {
+  Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     final dav = ref.watch(davSettingProvider);
     final isLoading = ref.watch(loadingProvider(LoadingTag.backup_restore));
-    final client = dav != null ? DAVClient(dav) : null;
     return CommonScaffold(
       isLoading: isLoading,
       title: appLocalizations.backupAndRestore,
@@ -198,26 +240,25 @@ class BackupAndRestore extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(appLocalizations.connectivity),
-                    FutureBuilder<bool>(
-                      future: client!.pingCompleter.future,
-                      builder: (_, snapshot) {
+                    ValueListenableBuilder(
+                      valueListenable: _davConnection,
+                      builder: (_, isCompleter, _) {
                         return Center(
                           child: FadeThroughBox(
-                            child:
-                                snapshot.connectionState != ConnectionState.done
+                            child: isCompleter == null
                                 ? const SizedBox(
                                     width: 12,
                                     height: 12,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 1,
-                                    ),
+                                    child: CommonCircleLoading(),
                                   )
                                 : Container(
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: snapshot.data == true
-                                          ? Colors.green
-                                          : Colors.red,
+                                      color: !isCompleter
+                                          ? context.colorScheme.error
+                                          : Colors.green.harmonizeWith(
+                                              context.colorScheme.primary,
+                                            ),
                                     ),
                                     width: 12,
                                     height: 12,
@@ -240,25 +281,24 @@ class BackupAndRestore extends ConsumerWidget {
             ListItem.input(
               title: Text(appLocalizations.file),
               subtitle: Text(dav.fileName),
-              delegate: InputDelegate(
-                title: appLocalizations.file,
-                value: dav.fileName,
-                resetValue: defaultDavFileName,
-                onChanged: (value) {
-                  _handleChange(value, ref);
-                },
-              ),
+              dialogTitle: appLocalizations.file,
+              value: dav.fileName,
+              resetValue: defaultDavFileName,
+              maxLength: TextInputLimits.fileName,
+              onChanged: (value) {
+                _handleChange(value, ref);
+              },
             ),
             ListItem(
               onTap: () {
-                _backupOnWebDAV(client);
+                _backupOnWebDAV();
               },
               title: Text(appLocalizations.backup),
               subtitle: Text(appLocalizations.remoteBackupDesc),
             ),
             ListItem(
               onTap: () {
-                _handleRestoreOnWebDAV(context, client);
+                _handleRestoreOnWebDAV();
               },
               title: Text(appLocalizations.restore),
               subtitle: Text(appLocalizations.restoreFromWebDAVDesc),
@@ -267,14 +307,14 @@ class BackupAndRestore extends ConsumerWidget {
           ListHeader(title: appLocalizations.local),
           ListItem(
             onTap: () {
-              _backupOnLocal(context);
+              _backupOnLocal();
             },
             title: Text(appLocalizations.backup),
             subtitle: Text(appLocalizations.localBackupDesc),
           ),
           ListItem(
             onTap: () {
-              _handleRestoreOnLocal(context);
+              _handleRestoreOnLocal();
             },
             title: Text(appLocalizations.restore),
             subtitle: Text(appLocalizations.restoreFromFileDesc),
@@ -287,12 +327,12 @@ class BackupAndRestore extends ConsumerWidget {
               );
               return ListItem(
                 onTap: () {
-                  _handleUpdateRestoreStrategy(ref);
+                  _handleUpdateRestoreStrategy();
                 },
                 title: Text(appLocalizations.restoreStrategy),
                 trailing: FilledButton(
                   onPressed: () {
-                    _handleUpdateRestoreStrategy(ref);
+                    _handleUpdateRestoreStrategy();
                   },
                   child: Text(
                     Intl.message('restoreStrategy_${restoreStrategy.name}'),
@@ -322,6 +362,7 @@ class _RestoreOptionsDialogState extends State<RestoreOptionsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     return CommonDialog(
       title: appLocalizations.restore,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
@@ -371,16 +412,21 @@ class _WebDAVFormDialogState extends ConsumerState<WebDAVFormDialog> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
-    ref.read(davSettingProvider.notifier).value = DAVProps(
-      uri: _uriController.text,
-      user: _userController.text,
-      password: _passwordController.text,
-    );
+    ref
+        .read(davSettingProvider.notifier)
+        .update(
+          (_) => DAVProps(
+            uri: _uriController.text,
+            user: _userController.text,
+            password: _passwordController.text,
+            fileName: widget.dav?.fileName ?? defaultDavFileName,
+          ),
+        );
     Navigator.pop(context);
   }
 
   void _delete() {
-    ref.read(davSettingProvider.notifier).value = null;
+    ref.read(davSettingProvider.notifier).update((_) => null);
     Navigator.pop(context);
   }
 
@@ -395,6 +441,7 @@ class _WebDAVFormDialogState extends ConsumerState<WebDAVFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     return CommonDialog(
       title: appLocalizations.webDAVConfiguration,
       actions: [
@@ -409,6 +456,7 @@ class _WebDAVFormDialogState extends ConsumerState<WebDAVFormDialog> {
           children: [
             TextFormField(
               controller: _uriController,
+              inputFormatters: TextInputLimits.limit(TextInputLimits.uri),
               maxLines: 5,
               minLines: 1,
               decoration: InputDecoration(
@@ -426,6 +474,7 @@ class _WebDAVFormDialogState extends ConsumerState<WebDAVFormDialog> {
             ),
             TextFormField(
               controller: _userController,
+              inputFormatters: TextInputLimits.limit(TextInputLimits.userName),
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.account_circle),
                 border: const OutlineInputBorder(),
@@ -443,6 +492,9 @@ class _WebDAVFormDialogState extends ConsumerState<WebDAVFormDialog> {
               builder: (_, obscure, _) {
                 return TextFormField(
                   controller: _passwordController,
+                  inputFormatters: TextInputLimits.limit(
+                    TextInputLimits.password,
+                  ),
                   obscureText: obscure,
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.password),

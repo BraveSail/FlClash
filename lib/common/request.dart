@@ -1,12 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/controller.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/state.dart';
@@ -24,7 +22,7 @@ class Request {
       createHttpClient: () {
         final client = HttpClient();
         client.findProxy = (Uri uri) {
-          client.userAgent = appController.ua;
+          client.userAgent = globalState.ua;
           return FlClashHttpOverrides.handleFindProxy(uri);
         };
         return client;
@@ -42,13 +40,13 @@ class Request {
       commonPrint.log('getFileResponseForUrl error ${e.toString()}');
       if (e is DioException) {
         if (e.type == DioExceptionType.unknown) {
-          throw appLocalizations.unknownNetworkError;
+          throw currentAppLocalizations.unknownNetworkError;
         } else if (e.type == DioExceptionType.badResponse) {
-          throw appLocalizations.networkException;
+          throw currentAppLocalizations.networkException;
         }
         rethrow;
       }
-      throw appLocalizations.unknownNetworkError;
+      throw currentAppLocalizations.unknownNetworkError;
     }
   }
 
@@ -106,7 +104,7 @@ class Request {
     final token = cancelToken ?? CancelToken();
     final futures = _ipInfoSources.entries.map((source) async {
       final Completer<Result<IpInfo?>> completer = Completer();
-      handleFailRes() {
+      void handleFailRes() {
         if (!completer.isCompleted && failureCount == _ipInfoSources.length) {
           completer.complete(Result.success(null));
         }
@@ -125,6 +123,7 @@ class Request {
               completer.complete(Result.success(source.value(res.data!)));
               return;
             }
+            commonPrint.log('checkIp data empty', logLevel: LogLevel.info);
             failureCount++;
             handleFailRes();
           })
@@ -132,7 +131,9 @@ class Request {
             failureCount++;
             if (e is DioException && e.type == DioExceptionType.cancel) {
               completer.complete(Result.error('cancelled'));
+              return;
             }
+            commonPrint.log('checkIp error $e', logLevel: LogLevel.warning);
             handleFailRes();
           });
       return completer.future;
@@ -140,60 +141,6 @@ class Request {
     final res = await Future.any(futures);
     token.cancel();
     return res;
-  }
-
-  Future<bool> pingHelper() async {
-    try {
-      final response = await dio
-          .get(
-            'http://$localhost:$helperPort/ping',
-            options: Options(responseType: ResponseType.plain),
-          )
-          .timeout(const Duration(milliseconds: 2000));
-      if (response.statusCode != HttpStatus.ok) {
-        return false;
-      }
-      return (response.data as String) == globalState.coreSHA256;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<bool> startCoreByHelper(String arg) async {
-    try {
-      final response = await dio
-          .post(
-            'http://$localhost:$helperPort/start',
-            data: json.encode({'path': appPath.corePath, 'arg': arg}),
-            options: Options(responseType: ResponseType.plain),
-          )
-          .timeout(const Duration(milliseconds: 2000));
-      if (response.statusCode != HttpStatus.ok) {
-        return false;
-      }
-      final data = response.data as String;
-      return data.isEmpty;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<bool> stopCoreByHelper() async {
-    try {
-      final response = await dio
-          .post(
-            'http://$localhost:$helperPort/stop',
-            options: Options(responseType: ResponseType.plain),
-          )
-          .timeout(const Duration(milliseconds: 2000));
-      if (response.statusCode != HttpStatus.ok) {
-        return false;
-      }
-      final data = response.data as String;
-      return data.isEmpty;
-    } catch (_) {
-      return false;
-    }
   }
 }
 

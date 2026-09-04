@@ -1,8 +1,9 @@
 import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/controller.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/common.dart';
+import 'package:fl_clash/providers/action.dart';
 import 'package:fl_clash/providers/config.dart';
+import 'package:fl_clash/state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,17 +30,20 @@ class _HotKeyManagerState extends ConsumerState<HotKeyManager> {
   }
 
   Future<void> _handleHotKeyAction(HotAction action) async {
+    final ref = globalState.container;
+    final commonAction = ref.read(commonActionProvider.notifier);
+    final systemAction = ref.read(systemActionProvider.notifier);
     switch (action) {
       case HotAction.mode:
-        appController.updateMode();
+        commonAction.updateMode();
       case HotAction.start:
-        appController.updateStart();
+        commonAction.toggleRunning();
       case HotAction.view:
-        appController.updateVisible();
+        systemAction.updateVisible();
       case HotAction.proxy:
-        appController.updateSystemProxy();
+        systemAction.updateSystemProxy();
       case HotAction.tun:
-        appController.updateTun();
+        systemAction.updateTun();
     }
   }
 
@@ -59,7 +63,7 @@ class _HotKeyManagerState extends ConsumerState<HotKeyManager> {
             key: PhysicalKeyboardKey(hotKeyAction.key!),
             modifiers: modifiers,
           );
-          return await hotKeyManager.register(
+          return hotKeyManager.register(
             hotKey,
             keyDownHandler: (_) {
               _handleHotKeyAction(hotKeyAction.action);
@@ -69,16 +73,23 @@ class _HotKeyManagerState extends ConsumerState<HotKeyManager> {
     await Future.wait(hotkeyActionHandles);
   }
 
-  Shortcuts _buildShortcuts(Widget child) {
+  Shortcuts _buildCloseShortcuts(Widget child) {
     return Shortcuts(
       shortcuts: {
         utils.controlSingleActivator(LogicalKeyboardKey.keyW):
-            CloseWindowIntent(),
+            const CloseWindowIntent(),
+        const SingleActivator(LogicalKeyboardKey.escape):
+            const EscapeBackIntent(),
       },
       child: Actions(
         actions: {
           CloseWindowIntent: CallbackAction<CloseWindowIntent>(
-            onInvoke: (_) => appController.handleBackOrExit(),
+            onInvoke: (_) => globalState.container
+                .read(systemActionProvider.notifier)
+                .handleClose(false),
+          ),
+          EscapeBackIntent: CallbackAction<EscapeBackIntent>(
+            onInvoke: (_) => globalState.navigatorKey.currentState?.maybePop(),
           ),
           DoNothingIntent: CallbackAction<DoNothingIntent>(
             onInvoke: (_) => null,
@@ -91,6 +102,6 @@ class _HotKeyManagerState extends ConsumerState<HotKeyManager> {
 
   @override
   Widget build(BuildContext context) {
-    return _buildShortcuts(widget.child);
+    return _buildCloseShortcuts(widget.child);
   }
 }

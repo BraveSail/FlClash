@@ -102,7 +102,7 @@ class StatusManagerState extends State<StatusManager> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: AnimatedSize(
                   duration: animateDuration,
                   child: ValueListenableBuilder(
@@ -111,7 +111,7 @@ class StatusManagerState extends State<StatusManager> {
                       return FadeThroughBox(
                         alignment: Alignment.centerRight,
                         child: messages.isEmpty
-                            ? SizedBox()
+                            ? const SizedBox()
                             : LayoutBuilder(
                                 key: Key(messages.last.id),
                                 builder: (_, constraints) {
@@ -132,10 +132,10 @@ class StatusManagerState extends State<StatusManager> {
                                           .surfaceContainerHigh,
                                       child: Container(
                                         width: min(constraints.maxWidth, 500),
-                                        constraints: BoxConstraints(
+                                        constraints: const BoxConstraints(
                                           minHeight: 54,
                                         ),
-                                        padding: EdgeInsets.symmetric(
+                                        padding: const EdgeInsets.symmetric(
                                           horizontal: 16,
                                           vertical: 8,
                                         ),
@@ -158,7 +158,7 @@ class StatusManagerState extends State<StatusManager> {
                                                 overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
-                                            SizedBox(width: 16),
+                                            const SizedBox(width: 16),
                                             if (messages.last.actionState !=
                                                 null)
                                               CommonMinFilledButtonTheme(
@@ -190,7 +190,6 @@ class StatusManagerState extends State<StatusManager> {
                   ),
                 ),
               ),
-              // LoadingIndicator(),
             ],
           ),
         ),
@@ -198,64 +197,3 @@ class StatusManagerState extends State<StatusManager> {
     );
   }
 }
-
-// class LoadingIndicator extends ConsumerWidget {
-//   const LoadingIndicator({super.key});
-//
-//   @override
-//   Widget build(BuildContext context, ref) {
-//     final loading = ref.watch(loadingProvider);
-//     final isMobileView = ref.watch(isMobileViewProvider);
-//     return AnimatedSwitcher(
-//       switchInCurve: Curves.easeIn,
-//       switchOutCurve: Curves.easeOut,
-//       duration: midDuration,
-//       transitionBuilder: (Widget child, Animation<double> animation) {
-//         return SlideTransition(
-//           position: Tween<Offset>(
-//             begin: const Offset(1, 0),
-//             end: Offset.zero,
-//           ).animate(animation),
-//           child: child,
-//         );
-//       },
-//       child: loading && isMobileView
-//           ? Container(
-//               height: 54,
-//               margin: EdgeInsets.only(top: 8, left: 14, right: 14),
-//               child: Material(
-//                 elevation: 3,
-//                 color: context.colorScheme.surfaceContainer,
-//                 surfaceTintColor: context.colorScheme.surfaceTint,
-//                 shape: const RoundedSuperellipseBorder(
-//                   borderRadius: BorderRadius.all(Radius.circular(14)),
-//                 ),
-//                 child: Padding(
-//                   padding: EdgeInsets.symmetric(horizontal: 16),
-//                   child: Row(
-//                     mainAxisSize: MainAxisSize.min,
-//                     spacing: 12,
-//                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//                     children: [
-//                       Flexible(
-//                         child: Text(
-//                           context.appLocalizations.loading,
-//                           style: context.textTheme.labelLarge?.copyWith(
-//                             color: context.colorScheme.onSurfaceVariant,
-//                           ),
-//                         ),
-//                       ),
-//                       SizedBox(
-//                         height: 32,
-//                         width: 32,
-//                         child: CommonCircleLoading(),
-//                       ),
-//                     ],
-//                   ),
-//                 ),
-//               ),
-//             )
-//           : SizedBox(),
-//     );
-//   }
-// }

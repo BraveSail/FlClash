@@ -31,14 +31,14 @@ class App {
   }
 
   Future<bool?> moveTaskToBack() async {
-    return await methodChannel.invokeMethod<bool>('moveTaskToBack');
+    return methodChannel.invokeMethod<bool>('moveTaskToBack');
   }
 
   Future<List<Package>> getPackages() async {
     final packagesString = await methodChannel.invokeMethod<String>(
       'getPackages',
     );
-    List<dynamic> packagesRaw =
+    final List<dynamic> packagesRaw =
         (await packagesString?.commonToJSON<List<dynamic>>()) ?? [];
     return packagesRaw.map((e) => Package.fromJson(e)).toSet().toList();
   }
@@ -47,15 +47,13 @@ class App {
     final packageNamesString = await methodChannel.invokeMethod<String>(
       'getChinaPackageNames',
     );
-    List<dynamic> packageNamesRaw =
+    final List<dynamic> packageNamesRaw =
         await packageNamesString?.commonToJSON<List<dynamic>>() ?? [];
     return packageNamesRaw.map((e) => e.toString()).toList();
   }
 
   Future<bool?> requestNotificationsPermission() async {
-    return await methodChannel.invokeMethod<bool>(
-      'requestNotificationsPermission',
-    );
+    return methodChannel.invokeMethod<bool>('requestNotificationsPermission');
   }
 
   Future<bool> openFile(String path) async {
@@ -63,33 +61,89 @@ class App {
         false;
   }
 
-  Future<ImageProvider?> getPackageIcon(String packageName) async {
-    final path = await methodChannel.invokeMethod<String>('getPackageIcon', {
-      'packageName': packageName,
-    });
-    if (path == null) {
-      return null;
+  final Map<String, ImageProvider?> _packageIcons = {};
+  final Map<String, Future<ImageProvider?>> _packageIconTasks = {};
+
+  bool hasPackageIcon(String packageName) {
+    return _packageIcons.containsKey(packageName);
+  }
+
+  ImageProvider? getCachedPackageIcon(String packageName) {
+    return _packageIcons[packageName];
+  }
+
+  Future<ImageProvider?> getPackageIcon(String packageName) {
+    if (packageName.isEmpty) {
+      return Future.value(null);
     }
-    return FileImage(File(path));
+    if (_packageIcons.containsKey(packageName)) {
+      return Future.value(_packageIcons[packageName]);
+    }
+    return _packageIconTasks[packageName] ??= _loadPackageIcon(packageName);
+  }
+
+  Future<ImageProvider?> _loadPackageIcon(String packageName) async {
+    ImageProvider? icon;
+    try {
+      final path = await methodChannel.invokeMethod<String>('getPackageIcon', {
+        'packageName': packageName,
+      });
+      icon = path == null ? null : FileImage(File(path));
+    } catch (error) {
+      commonPrint.log('getPackageIcon error: $error');
+    }
+    _packageIcons[packageName] = icon;
+    _packageIconTasks.remove(packageName);
+    return icon;
+  }
+
+  @visibleForTesting
+  void clearPackageIconCache() {
+    _packageIcons.clear();
+    _packageIconTasks.clear();
   }
 
   Future<bool?> tip(String? message) async {
-    return await methodChannel.invokeMethod<bool>('tip', {
-      'message': '$message',
-    });
+    return methodChannel.invokeMethod<bool>('tip', {'message': '$message'});
   }
 
   Future<bool?> initShortcuts() async {
-    return await methodChannel.invokeMethod<bool>(
+    return methodChannel.invokeMethod<bool>(
       'initShortcuts',
-      appLocalizations.toggle,
+      currentAppLocalizations.toggle,
     );
   }
 
   Future<bool?> updateExcludeFromRecents(bool value) async {
-    return await methodChannel.invokeMethod<bool>('updateExcludeFromRecents', {
+    return methodChannel.invokeMethod<bool>('updateExcludeFromRecents', {
       'value': value,
     });
+  }
+
+  Future<bool?> isBatteryOptimizationDisabled() async {
+    if (!Platform.isAndroid) return true;
+    return methodChannel.invokeMethod<bool>('isBatteryOptimizationDisabled');
+  }
+
+  Future<bool?> openBatteryOptimizationSettings() async {
+    if (!Platform.isAndroid) return false;
+    return methodChannel.invokeMethod<bool>('openBatteryOptimizationSettings');
+  }
+
+  Future<bool?> openAppSettings() async {
+    if (!Platform.isAndroid) return false;
+    return methodChannel.invokeMethod<bool>('openAppSettings');
+  }
+
+  Future<bool> didCrashOnPreviousExecution() async {
+    try {
+      return await methodChannel.invokeMethod<bool>(
+            'didCrashOnPreviousExecution',
+          ) ??
+          false;
+    } catch (_) {
+      return false;
+    }
   }
 }
 
