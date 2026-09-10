@@ -1527,7 +1527,7 @@ class _LineHighlightRenderer implements HighlightRenderer {
 }
 
 /// Runs on a worker isolate. The languages are top-level, so the isolate
-/// initialises them itself rather than receiving a [Mode] graph.
+/// initialises them itself rather than receiving a highlight grammar graph.
 List<List<_HighlightRange>> _highlightDocument(_HighlightRequest request) {
   final Highlight highlight = Highlight()
     ..registerLanguages({
