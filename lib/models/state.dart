@@ -1,5 +1,4 @@
 import 'package:collection/collection.dart';
-import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:flutter/material.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
@@ -13,6 +12,11 @@ import 'profile.dart';
 
 part 'generated/state.freezed.dart';
 part 'generated/state.g.dart';
+
+@freezed
+abstract class VM<A> with _$VM<A> {
+  const factory VM(A a) = _VM;
+}
 
 @freezed
 abstract class VM2<A, B> with _$VM2<A, B> {
@@ -104,7 +108,6 @@ abstract class ProfilesState with _$ProfilesState {
   const factory ProfilesState({
     required List<Profile> profiles,
     required int? currentProfileId,
-    required int columns,
   }) = _ProfilesState;
 }
 
@@ -169,7 +172,6 @@ abstract class ProxiesListState with _$ProxiesListState {
     required List<Group> groups,
     required Set<String> currentUnfoldSet,
     required ProxyCardType proxyCardType,
-    required int columns,
   }) = _ProxiesListState;
 }
 
@@ -179,7 +181,6 @@ abstract class ProxiesTabState with _$ProxiesTabState {
     required List<Group> groups,
     required String? currentGroupName,
     required ProxyCardType proxyCardType,
-    required int columns,
   }) = _ProxiesTabState;
 }
 
@@ -192,7 +193,6 @@ abstract class ProxyGroupSelectorState with _$ProxyGroupSelectorState {
     required num sortNum,
     required GroupType groupType,
     required List<Proxy> proxies,
-    required int columns,
   }) = _ProxyGroupSelectorState;
 }
 
@@ -272,19 +272,9 @@ abstract class ProxyState with _$ProxyState {
 }
 
 @freezed
-abstract class ClashConfigState with _$ClashConfigState {
-  const factory ClashConfigState({
-    required bool overrideDns,
-    required ClashConfig clashConfig,
-    required RouteMode routeMode,
-  }) = _ClashConfigState;
-}
-
-@freezed
 abstract class DashboardState with _$DashboardState {
   const factory DashboardState({
     required List<DashboardWidget> dashboardWidgets,
-    required double contentWidth,
   }) = _DashboardState;
 }
 
@@ -343,9 +333,11 @@ abstract class MakeRealProfileState with _$MakeRealProfileState {
     required String profilesPath,
     required int profileId,
     required Map<String, dynamic> rawConfig,
-    required ClashConfig realPatchConfig,
+    required PatchClashConfig realPatchConfig,
     required bool overrideDns,
     required bool appendSystemDns,
+    required List<ProxyGroup> proxyGroups,
+    required List<Rule> rules,
     required List<Rule> addedRules,
     required String defaultUA,
   }) = _MakeRealProfileState;
@@ -359,6 +351,7 @@ abstract class MigrationData with _$MigrationData {
     @Default([]) List<Script> scripts,
     @Default([]) List<Profile> profiles,
     @Default([]) List<ProfileRuleLink> links,
+    @Default([]) List<ProxyGroup> proxyGroups,
   }) = _MigrationData;
 }
 
@@ -368,48 +361,11 @@ abstract class SetupState with _$SetupState {
     required int? profileId,
     required int? profileLastUpdateDate,
     required OverwriteType overwriteType,
+    required List<Rule> rules,
+    required List<ProxyGroup> proxyGroups,
     required List<Rule> addedRules,
     required Script? script,
     required bool overrideDns,
     required Dns dns,
   }) = _SetupState;
-}
-
-extension SetupStateExt on SetupState {
-  bool needSetup(SetupState? lastSetupState) {
-    if (lastSetupState == null) {
-      return false;
-    }
-    if (profileId != lastSetupState.profileId) {
-      return true;
-    }
-    if (profileLastUpdateDate != lastSetupState.profileLastUpdateDate) {
-      return true;
-    }
-    final scriptIsChange = script != lastSetupState.script;
-    if (overwriteType != lastSetupState.overwriteType) {
-      if (!ruleListEquality.equals(addedRules, lastSetupState.addedRules) ||
-          scriptIsChange) {
-        return true;
-      }
-    } else {
-      if (overwriteType == OverwriteType.script) {
-        if (scriptIsChange) {
-          return true;
-        }
-      }
-      if (overwriteType == OverwriteType.standard) {
-        if (!ruleListEquality.equals(addedRules, lastSetupState.addedRules)) {
-          return true;
-        }
-      }
-    }
-    if (overrideDns != lastSetupState.overrideDns) {
-      return true;
-    }
-    if (overrideDns == true && dns != lastSetupState.dns) {
-      return true;
-    }
-    return false;
-  }
 }

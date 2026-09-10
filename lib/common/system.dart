@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:ffi/ffi.dart';
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/core/desktop/helper_client.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/plugins/app.dart';
 import 'package:fl_clash/state.dart';
@@ -13,6 +14,7 @@ import 'package:path/path.dart';
 
 class System {
   static System? _instance;
+  bool _isTV = false;
 
   System._internal();
 
@@ -31,8 +33,19 @@ class System {
 
   bool get isLinux => Platform.isLinux;
 
-  Future<int> get version async {
+  bool get isTV => _isTV;
+
+  Future<int> init() async {
     final deviceInfo = await DeviceInfoPlugin().deviceInfo;
+    _isTV = switch (deviceInfo) {
+      AndroidDeviceInfo(:final systemFeatures) => systemFeatures.any(
+        const {
+          'android.hardware.type.television',
+          'android.software.leanback',
+        }.contains,
+      ),
+      _ => false,
+    };
     return switch (Platform.operatingSystem) {
       'macos' => (deviceInfo as MacOsDeviceInfo).majorVersion,
       'android' => (deviceInfo as AndroidDeviceInfo).version.sdkInt,
@@ -41,11 +54,16 @@ class System {
     };
   }
 
+  Future<bool> didCrashOnPreviousExecution() async {
+    if (!isAndroid) return false;
+    return await app?.didCrashOnPreviousExecution() ?? false;
+  }
+
   Future<bool> checkIsAdmin() async {
     final corePath = appPath.corePath.replaceAll(' ', '\\\\ ');
     if (system.isWindows) {
-      final result = await windows?.checkService();
-      return result == WindowsHelperServiceStatus.running;
+      return await windowsHelperClient.readiness() ==
+          WindowsHelperReadiness.ready;
     } else if (system.isMacOS) {
       final result = await Process.run('stat', ['-f', '%Su:%Sg %Sp', corePath]);
       final output = result.stdout.trim();
@@ -64,26 +82,25 @@ class System {
     return true;
   }
 
+  static String _shellEscape(String value) {
+    return "'${value.replaceAll("'", "'\\''")}'";
+  }
+
   Future<AuthorizeCode> authorizeCore() async {
     if (system.isAndroid) {
       return AuthorizeCode.error;
     }
-    final corePath = appPath.corePath.replaceAll(' ', '\\\\ ');
+    if (system.isWindows) {
+      return await windows?.registerService() ?? AuthorizeCode.error;
+    }
     final isAdmin = await checkIsAdmin();
     if (isAdmin) {
       return AuthorizeCode.none;
     }
 
-    if (system.isWindows) {
-      final result = await windows?.registerService();
-      if (result == true) {
-        return AuthorizeCode.success;
-      }
-      return AuthorizeCode.error;
-    }
-
     if (system.isMacOS) {
-      final shell = 'chown root:admin $corePath; chmod +sx $corePath';
+      final escapedPath = _shellEscape(appPath.corePath);
+      final shell = 'chown root:admin $escapedPath && chmod +sx $escapedPath';
       final arguments = [
         '-e',
         'do shell script "$shell" with administrator privileges',
@@ -98,13 +115,19 @@ class System {
       final password = await globalState.showCommonDialog<String>(
         child: InputDialog(
           obscureText: true,
-          title: appLocalizations.pleaseInputAdminPassword,
+          title: currentAppLocalizations.pleaseInputAdminPassword,
           value: '',
+          inputFormatters: TextInputLimits.limit(TextInputLimits.password),
         ),
       );
+      if (password == null || password.isEmpty) {
+        return AuthorizeCode.error;
+      }
+      final escapedPassword = _shellEscape(password);
+      final escapedCorePath = _shellEscape(appPath.corePath);
       final arguments = [
         '-c',
-        'echo "$password" | sudo -S chown root:root "$corePath" && echo "$password" | sudo -S chmod +sx "$corePath"',
+        'echo $escapedPassword | sudo -S chown root:root $escapedCorePath && echo $escapedPassword | sudo -S chmod +sx $escapedCorePath',
       ];
       final result = await Process.run(shell, arguments);
       if (result.exitCode != 0) {
@@ -124,7 +147,7 @@ class System {
     if (system.isAndroid) {
       await SystemNavigator.pop();
     }
-    await window?.close();
+    window?.forceExit();
   }
 }
 
@@ -192,79 +215,66 @@ class Windows {
     return true;
   }
 
-  // Future<void> _killProcess(int port) async {
-  //   final result = await Process.run('netstat', ['-ano']);
-  //   final lines = result.stdout.toString().trim().split('\n');
-  //   for (final line in lines) {
-  //     if (!line.contains(':$port') || !line.contains('LISTENING')) {
-  //       continue;
-  //     }
-  //     final parts = line.trim().split(RegExp(r'\s+'));
-  //     final pid = int.tryParse(parts.last);
-  //     if (pid != null) {
-  //      await Process.run('taskkill', ['/PID', pid.toString(), '/F']);
-  //     }
-  //   }
-  // }
+  Future<AuthorizeCode> registerService() async {
+    final readiness = await windowsHelperClient.readiness();
+    switch (readiness) {
+      case WindowsHelperReadiness.ready:
+        commonPrint.log('helper service is ready');
+        return AuthorizeCode.none;
+      case WindowsHelperReadiness.manifestMissing:
+        commonPrint.log(
+          'Core manifest is missing or invalid; Helper service unavailable, '
+          'falling back to direct Core',
+          logLevel: LogLevel.warning,
+        );
+        globalState.showNotifier(currentAppLocalizations.helperCorruptTip);
+        return AuthorizeCode.error;
+      case WindowsHelperReadiness.notReady:
+        break;
+    }
 
-  Future<WindowsHelperServiceStatus> checkService() async {
-    // final qcResult = await Process.run('sc', ['qc', appHelperService]);
-    // final qcOutput = qcResult.stdout.toString();
-    // if (qcResult.exitCode != 0 || !qcOutput.contains(appPath.helperPath)) {
-    //   return WindowsHelperServiceStatus.none;
-    // }
-    final result = await Process.run('sc', ['query', appHelperService]);
-    if (result.exitCode != 0) {
-      return WindowsHelperServiceStatus.none;
+    commonPrint.log(
+      'helper service is unavailable, requesting elevated installation',
+      logLevel: LogLevel.warning,
+    );
+    if (!runas(appPath.helperPath, 'install')) {
+      commonPrint.log(
+        'failed to launch elevated helper installation',
+        logLevel: LogLevel.error,
+      );
+      return AuthorizeCode.error;
     }
-    final output = result.stdout.toString();
-    if (output.contains('RUNNING') && await request.pingHelper()) {
-      return WindowsHelperServiceStatus.running;
-    }
-    return WindowsHelperServiceStatus.presence;
+
+    final isRunning = await _waitForHelperService();
+    commonPrint.log(
+      isRunning
+          ? 'helper service installation completed'
+          : 'helper service did not become ready after installation',
+      logLevel: isRunning ? LogLevel.info : LogLevel.error,
+    );
+    return isRunning ? AuthorizeCode.success : AuthorizeCode.error;
   }
 
-  Future<bool> registerService() async {
-    final status = await checkService();
-
-    if (status == WindowsHelperServiceStatus.running) {
-      return true;
+  Future<bool> _waitForHelperService() async {
+    const timeout = Duration(seconds: 6);
+    const interval = Duration(seconds: 1);
+    const maxAttempts = 6;
+    final stopwatch = Stopwatch()..start();
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      final remaining = timeout - stopwatch.elapsed;
+      if (remaining <= Duration.zero) return false;
+      final isRunning =
+          await windowsHelperClient.readiness(
+            timeout: remaining,
+            logFailure: false,
+          ) ==
+          WindowsHelperReadiness.ready;
+      if (isRunning) return true;
+      final delay = timeout - stopwatch.elapsed;
+      if (delay <= Duration.zero || attempt == maxAttempts - 1) return false;
+      await Future.delayed(delay < interval ? delay : interval);
     }
-
-    final command = [
-      '/c',
-      if (status == WindowsHelperServiceStatus.presence) ...[
-        'taskkill',
-        '/F',
-        '/IM',
-        '$appHelperService.exe'
-            ' & '
-            'sc',
-        'delete',
-        appHelperService,
-        '&',
-      ],
-      'sc',
-      'create',
-      appHelperService,
-      'binPath= "${appPath.helperPath}"',
-      'start= auto',
-      '&&',
-      'sc',
-      'start',
-      appHelperService,
-    ].join(' ');
-
-    final res = runas('cmd.exe', command);
-
-    await Future.delayed(Duration(milliseconds: 300));
-    final retryStatus = await retry(
-      task: checkService,
-      maxAttempts: 5,
-      retryIf: (status) => status != WindowsHelperServiceStatus.running,
-      delay: Duration(seconds: 1),
-    );
-    return res && retryStatus == WindowsHelperServiceStatus.running;
+    return false;
   }
 
   Future<bool> registerTask(String appName) async {
@@ -404,7 +414,7 @@ class MacOS {
       if (originDns == null) {
         return;
       }
-      final needAddDns = '223.5.5.5';
+      const needAddDns = '223.5.5.5';
       if (originDns.contains(needAddDns)) {
         return;
       }

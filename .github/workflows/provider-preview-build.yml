@@ -1,0 +1,144 @@
+name: provider preview build
+
+on:
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: Android ABI to build
+        required: false
+        default: arm64
+        type: choice
+        options:
+          - arm64
+          - arm
+          - amd64
+          - all
+      env:
+        description: App environment
+        required: false
+        default: pre
+        type: choice
+        options:
+          - pre
+          - stable
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android ${{ github.event.inputs.arch || 'arm64' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.4'
+          cache-dependency-path: |
+            core/go.sum
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.4
+          cache: true
+
+      - name: Setup Android signing
+        env:
+          # Nagram keeps the release keystore in the repo and credentials in LOCAL_PROPERTIES.
+          # Also accept split secrets so this fork can reuse the same credentials directly.
+          KEYSTORE_B64: ${{ secrets.NAGRAM_RELEASE_KEYSTORE || secrets.KEYSTORE }}
+          NAGRAM_LOCAL_PROPERTIES_B64: ${{ secrets.NAGRAM_LOCAL_PROPERTIES || secrets.LOCAL_PROPERTIES }}
+          SERVICE_JSON_B64: ${{ secrets.SERVICE_JSON }}
+          KEY_ALIAS: ${{ secrets.NAGRAM_KEY_ALIAS || secrets.KEY_ALIAS }}
+          STORE_PASSWORD: ${{ secrets.NAGRAM_STORE_PASSWORD || secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.NAGRAM_KEY_PASSWORD || secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          trim_secret() {
+            printf '%s' "$1" | tr -d '\r\n'
+          }
+
+          signing_requested=false
+
+          if [ -n "${NAGRAM_LOCAL_PROPERTIES_B64:-}" ]; then
+            signing_requested=true
+            echo "$NAGRAM_LOCAL_PROPERTIES_B64" | base64 --decode > /tmp/nagram-local.properties
+            KEY_ALIAS="${KEY_ALIAS:-$(sed -n 's/^ALIAS_NAME=//p' /tmp/nagram-local.properties | tail -n1)}"
+            STORE_PASSWORD="${STORE_PASSWORD:-$(sed -n 's/^KEYSTORE_PASS=//p' /tmp/nagram-local.properties | tail -n1)}"
+            KEY_PASSWORD="${KEY_PASSWORD:-$(sed -n 's/^ALIAS_PASS=//p' /tmp/nagram-local.properties | tail -n1)}"
+          fi
+
+          KEY_ALIAS="$(trim_secret "${KEY_ALIAS:-}")"
+          STORE_PASSWORD="$(trim_secret "${STORE_PASSWORD:-}")"
+          KEY_PASSWORD="$(trim_secret "${KEY_PASSWORD:-}")"
+
+          if [ -n "${KEYSTORE_B64:-}" ]; then
+            signing_requested=true
+            echo "$KEYSTORE_B64" | base64 --decode > android/app/keystore.jks
+          fi
+
+          validate_signing() {
+            [ -s android/app/keystore.jks ] && \
+              [ -n "$KEY_ALIAS" ] && [ -n "$STORE_PASSWORD" ] && [ -n "$KEY_PASSWORD" ] && \
+              keytool -list -keystore android/app/keystore.jks -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null 2>&1
+          }
+
+          # If the copied keystore secret is absent or does not match, use Nagram's public
+          # release keystore and validate it against the Nagram credentials.
+          if ! validate_signing && [ -n "$KEY_ALIAS$STORE_PASSWORD$KEY_PASSWORD" ]; then
+            signing_requested=true
+            curl -fsSL --retry 3 \
+              https://raw.githubusercontent.com/NextAlone/Nagram/dev/TMessagesProj/release.keystore \
+              -o android/app/keystore.jks
+          fi
+
+          if validate_signing; then
+            {
+              echo "keyAlias=$KEY_ALIAS"
+              echo "storePassword=$STORE_PASSWORD"
+              echo "keyPassword=$KEY_PASSWORD"
+            } >> android/local.properties
+            echo "Nagram Android signing configured."
+          elif [ "$signing_requested" = true ] || [ -n "$KEY_ALIAS$STORE_PASSWORD$KEY_PASSWORD" ]; then
+            echo "::error::Nagram signing secrets were provided, but they do not validate against the Nagram release keystore."
+            rm -f android/app/keystore.jks android/local.properties
+            exit 1
+          else
+            echo "::warning::No Android signing secrets were provided. Building with FlClash debug signing instead."
+            rm -f android/app/keystore.jks android/local.properties
+          fi
+
+          if [ -n "${SERVICE_JSON_B64:-}" ]; then
+            echo "$SERVICE_JSON_B64" | base64 --decode > android/app/google-services.json
+          fi
+
+      - name: Get Flutter dependency
+        run: |
+          flutter --version
+          flutter pub get
+
+      - name: Build Android artifact
+        run: |
+          BUILD_ARCH="${{ github.event.inputs.arch || 'arm64' }}"
+          BUILD_ENV="${{ github.event.inputs.env || 'pre' }}"
+          if [ "$BUILD_ARCH" = "all" ]; then
+            dart setup.dart android --env "$BUILD_ENV"
+          else
+            dart setup.dart android --arch "$BUILD_ARCH" --env "$BUILD_ENV"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlClash-${{ github.event.inputs.arch || 'arm64' }}-${{ github.sha }}
+          path: ./dist
+          if-no-files-found: error
+          overwrite: true

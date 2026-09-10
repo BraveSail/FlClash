@@ -32,7 +32,7 @@ class _AndroidContainerState extends ConsumerState<AndroidManager>
       if (prev != next) {
         debouncer.call(FunctionTag.saveSharedFile, () async {
           preferences.saveShareState(next);
-        }, duration: Duration(seconds: 1));
+        }, duration: const Duration(seconds: 1));
         if (prev?.needSyncSharedState != next.needSyncSharedState) {
           service?.syncState(next.needSyncSharedState);
         }
@@ -51,14 +51,6 @@ class _AndroidContainerState extends ConsumerState<AndroidManager>
   void onServiceEvent(CoreEvent event) {
     coreEventManager.sendEvent(event);
     super.onServiceEvent(event);
-  }
-
-  @override
-  void onServiceCrash(String message) {
-    coreEventManager.sendEvent(
-      CoreEvent(type: CoreEventType.crash, data: message),
-    );
-    super.onServiceCrash(message);
   }
 
   @override

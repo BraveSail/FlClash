@@ -92,7 +92,7 @@ class _SideSheetState extends State<SideSheet> {
 
     final Clip clipBehavior = widget.clipBehavior ?? Clip.none;
 
-    Widget sideSheet = Material(
+    final Widget sideSheet = Material(
       key: _childKey,
       color: color,
       elevation: elevation,
@@ -628,28 +628,3 @@ Future<T?> showModalSideSheet<T>({
     ),
   );
 }
-
-// class ModalAppBar extends StatelessWidget {
-//   final String title;
-//
-//   const ModalAppBar({
-//     super.key,
-//     required this.title,
-//   });
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return AppBar(
-//       automaticallyImplyLeading: false,
-//       title: Text(title),
-//       centerTitle: false,
-//       actions: const [
-//         SizedBox(
-//           height: kToolbarHeight,
-//           width: kToolbarHeight,
-//           child: CloseButton(),
-//         )
-//       ],
-//     );
-//   }
-// }

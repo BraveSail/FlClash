@@ -1,9 +1,8 @@
 import 'dart:math';
 
 import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/controller.dart';
 import 'package:fl_clash/enum/enum.dart';
-import 'package:fl_clash/providers/config.dart';
+import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter/material.dart';
@@ -13,8 +12,13 @@ import 'package:intl/intl.dart';
 class OutboundMode extends StatelessWidget {
   const OutboundMode({super.key});
 
+  void _handleChangeMode(Mode mode) {
+    globalState.container.read(setupActionProvider.notifier).changeMode(mode);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     final height = getWidgetHeight(2);
     return SizedBox(
       height: height,
@@ -43,7 +47,7 @@ class OutboundMode extends StatelessWidget {
                     if (value == null) {
                       return;
                     }
-                    appController.changeMode(value);
+                    _handleChangeMode(value);
                   },
                   child: LayoutBuilder(
                     builder: (_, constraints) {
@@ -66,12 +70,10 @@ class OutboundMode extends StatelessWidget {
                                 left: 12.ap,
                                 right: 16.ap,
                               ),
-                              delegate: RadioDelegate(
-                                onTab: () {
-                                  appController.changeMode(item);
-                                },
-                                value: item,
-                              ),
+                              onTap: () {
+                                _handleChangeMode(item);
+                              },
+                              value: item,
                               title: Text(
                                 Intl.message(item.name),
                                 style: Theme.of(
@@ -96,6 +98,10 @@ class OutboundMode extends StatelessWidget {
 class OutboundModeV2 extends StatelessWidget {
   const OutboundModeV2({super.key});
 
+  void _handleChangeMode(Mode mode) {
+    globalState.container.read(setupActionProvider.notifier).changeMode(mode);
+  }
+
   Color _getTextColor(BuildContext context, Mode mode) {
     return switch (mode) {
       Mode.rule => context.colorScheme.onSecondaryContainer,
@@ -110,7 +116,6 @@ class OutboundModeV2 extends StatelessWidget {
     return SizedBox(
       height: height,
       child: CommonCard(
-        padding: EdgeInsets.zero,
         child: Consumer(
           builder: (_, ref, _) {
             final mode = ref.watch(
@@ -128,8 +133,8 @@ class OutboundModeV2 extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Container(
-                        padding: EdgeInsets.all(12),
-                        constraints: BoxConstraints.expand(),
+                        padding: const EdgeInsets.all(12),
+                        constraints: const BoxConstraints.expand(),
                         child: CommonTabBar<Mode>(
                           children: Map.fromEntries(
                             Mode.values.map(
@@ -138,9 +143,9 @@ class OutboundModeV2 extends StatelessWidget {
                                 Container(
                                   clipBehavior: Clip.antiAlias,
                                   alignment: Alignment.center,
-                                  decoration: BoxDecoration(),
+                                  decoration: const BoxDecoration(),
                                   height: height - 8.ap - 24,
-                                  padding: EdgeInsets.all(4),
+                                  padding: const EdgeInsets.all(4),
                                   child: Text(
                                     Intl.message(item.name),
                                     style: Theme.of(context)
@@ -157,13 +162,13 @@ class OutboundModeV2 extends StatelessWidget {
                               ),
                             ),
                           ),
-                          padding: EdgeInsets.symmetric(horizontal: 0),
+                          padding: const EdgeInsets.symmetric(horizontal: 0),
                           groupValue: mode,
                           onValueChanged: (value) {
                             if (value == null) {
                               return;
                             }
-                            appController.changeMode(value);
+                            _handleChangeMode(value);
                           },
                           thumbColor: thumbColor,
                         ),
@@ -173,19 +178,7 @@ class OutboundModeV2 extends StatelessWidget {
                       color: thumbColor.opacity50,
                       height: 8.ap,
                       width: constraints.maxWidth,
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      // child: Row(
-                      //   children: [
-                      //     Container(
-                      //       width: (constraints.maxWidth - 32) / 3,
-                      //       height: 3,
-                      //       decoration: BoxDecoration(
-                      //         color: _getTextColor(context, mode),
-                      //         borderRadius: BorderRadius.circular(2),
-                      //       ),
-                      //     ),
-                      //   ],
-                      // ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                     ),
                   ],
                 );

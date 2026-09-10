@@ -3,27 +3,25 @@ import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 class CloseConnectionsItem extends ConsumerWidget {
   const CloseConnectionsItem({super.key});
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final closeConnections = ref.watch(
       appSettingProvider.select((state) => state.closeConnections),
     );
-    return ListItem.switchItem(
+    return ListItem.toggle(
       title: Text(appLocalizations.autoCloseConnections),
       subtitle: Text(appLocalizations.autoCloseConnectionsDesc),
-      delegate: SwitchDelegate(
-        value: closeConnections,
-        onChanged: (value) async {
-          ref
-              .read(appSettingProvider.notifier)
-              .update((state) => state.copyWith(closeConnections: value));
-        },
-      ),
+      value: closeConnections,
+      onChanged: (value) async {
+        ref
+            .read(appSettingProvider.notifier)
+            .update((state) => state.copyWith(closeConnections: value));
+      },
     );
   }
 }
@@ -33,20 +31,19 @@ class UsageItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final onlyStatisticsProxy = ref.watch(
       appSettingProvider.select((state) => state.onlyStatisticsProxy),
     );
-    return ListItem.switchItem(
+    return ListItem.toggle(
       title: Text(appLocalizations.onlyStatisticsProxy),
       subtitle: Text(appLocalizations.onlyStatisticsProxyDesc),
-      delegate: SwitchDelegate(
-        value: onlyStatisticsProxy,
-        onChanged: (bool value) async {
-          ref
-              .read(appSettingProvider.notifier)
-              .update((state) => state.copyWith(onlyStatisticsProxy: value));
-        },
-      ),
+      value: onlyStatisticsProxy,
+      onChanged: (bool value) async {
+        ref
+            .read(appSettingProvider.notifier)
+            .update((state) => state.copyWith(onlyStatisticsProxy: value));
+      },
     );
   }
 }
@@ -56,20 +53,19 @@ class MinimizeItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final appLocalizations = context.appLocalizations;
     final minimizeOnExit = ref.watch(
       appSettingProvider.select((state) => state.minimizeOnExit),
     );
-    return ListItem.switchItem(
+    return ListItem.toggle(
       title: Text(appLocalizations.minimizeOnExit),
       subtitle: Text(appLocalizations.minimizeOnExitDesc),
-      delegate: SwitchDelegate(
-        value: minimizeOnExit,
-        onChanged: (bool value) {
-          ref
-              .read(appSettingProvider.notifier)
-              .update((state) => state.copyWith(minimizeOnExit: value));
-        },
-      ),
+      value: minimizeOnExit,
+      onChanged: (bool value) {
+        ref
+            .read(appSettingProvider.notifier)
+            .update((state) => state.copyWith(minimizeOnExit: value));
+      },
     );
   }
 }
@@ -79,20 +75,19 @@ class AutoLaunchItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final appLocalizations = context.appLocalizations;
     final autoLaunch = ref.watch(
       appSettingProvider.select((state) => state.autoLaunch),
     );
-    return ListItem.switchItem(
+    return ListItem.toggle(
       title: Text(appLocalizations.autoLaunch),
       subtitle: Text(appLocalizations.autoLaunchDesc),
-      delegate: SwitchDelegate(
-        value: autoLaunch,
-        onChanged: (bool value) {
-          ref
-              .read(appSettingProvider.notifier)
-              .update((state) => state.copyWith(autoLaunch: value));
-        },
-      ),
+      value: autoLaunch,
+      onChanged: (bool value) {
+        ref
+            .read(appSettingProvider.notifier)
+            .update((state) => state.copyWith(autoLaunch: value));
+      },
     );
   }
 }
@@ -102,20 +97,19 @@ class SilentLaunchItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final appLocalizations = context.appLocalizations;
     final silentLaunch = ref.watch(
       appSettingProvider.select((state) => state.silentLaunch),
     );
-    return ListItem.switchItem(
+    return ListItem.toggle(
       title: Text(appLocalizations.silentLaunch),
       subtitle: Text(appLocalizations.silentLaunchDesc),
-      delegate: SwitchDelegate(
-        value: silentLaunch,
-        onChanged: (bool value) {
-          ref
-              .read(appSettingProvider.notifier)
-              .update((state) => state.copyWith(silentLaunch: value));
-        },
-      ),
+      value: silentLaunch,
+      onChanged: (bool value) {
+        ref
+            .read(appSettingProvider.notifier)
+            .update((state) => state.copyWith(silentLaunch: value));
+      },
     );
   }
 }
@@ -125,20 +119,19 @@ class AutoRunItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final appLocalizations = context.appLocalizations;
     final autoRun = ref.watch(
       appSettingProvider.select((state) => state.autoRun),
     );
-    return ListItem.switchItem(
+    return ListItem.toggle(
       title: Text(appLocalizations.autoRun),
       subtitle: Text(appLocalizations.autoRunDesc),
-      delegate: SwitchDelegate(
-        value: autoRun,
-        onChanged: (bool value) {
-          ref
-              .read(appSettingProvider.notifier)
-              .update((state) => state.copyWith(autoRun: value));
-        },
-      ),
+      value: autoRun,
+      onChanged: (bool value) {
+        ref
+            .read(appSettingProvider.notifier)
+            .update((state) => state.copyWith(autoRun: value));
+      },
     );
   }
 }
@@ -148,20 +141,19 @@ class HiddenItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final appLocalizations = context.appLocalizations;
     final hidden = ref.watch(
       appSettingProvider.select((state) => state.hidden),
     );
-    return ListItem.switchItem(
+    return ListItem.toggle(
       title: Text(appLocalizations.exclude),
       subtitle: Text(appLocalizations.excludeDesc),
-      delegate: SwitchDelegate(
-        value: hidden,
-        onChanged: (value) {
-          ref
-              .read(appSettingProvider.notifier)
-              .update((state) => state.copyWith(hidden: value));
-        },
-      ),
+      value: hidden,
+      onChanged: (value) {
+        ref
+            .read(appSettingProvider.notifier)
+            .update((state) => state.copyWith(hidden: value));
+      },
     );
   }
 }
@@ -171,20 +163,19 @@ class AnimateTabItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final appLocalizations = context.appLocalizations;
     final isAnimateToPage = ref.watch(
       appSettingProvider.select((state) => state.isAnimateToPage),
     );
-    return ListItem.switchItem(
+    return ListItem.toggle(
       title: Text(appLocalizations.tabAnimation),
       subtitle: Text(appLocalizations.tabAnimationDesc),
-      delegate: SwitchDelegate(
-        value: isAnimateToPage,
-        onChanged: (value) {
-          ref
-              .read(appSettingProvider.notifier)
-              .update((state) => state.copyWith(isAnimateToPage: value));
-        },
-      ),
+      value: isAnimateToPage,
+      onChanged: (value) {
+        ref
+            .read(appSettingProvider.notifier)
+            .update((state) => state.copyWith(isAnimateToPage: value));
+      },
     );
   }
 }
@@ -194,20 +185,19 @@ class OpenLogsItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final appLocalizations = context.appLocalizations;
     final openLogs = ref.watch(
       appSettingProvider.select((state) => state.openLogs),
     );
-    return ListItem.switchItem(
+    return ListItem.toggle(
       title: Text(appLocalizations.logcat),
       subtitle: Text(appLocalizations.logcatDesc),
-      delegate: SwitchDelegate(
-        value: openLogs,
-        onChanged: (bool value) {
-          ref
-              .read(appSettingProvider.notifier)
-              .update((state) => state.copyWith(openLogs: value));
-        },
-      ),
+      value: openLogs,
+      onChanged: (bool value) {
+        ref
+            .read(appSettingProvider.notifier)
+            .update((state) => state.copyWith(openLogs: value));
+      },
     );
   }
 }
@@ -217,20 +207,19 @@ class CrashlyticsItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final appLocalizations = context.appLocalizations;
     final crashlytics = ref.watch(
       appSettingProvider.select((state) => state.crashlytics),
     );
-    return ListItem.switchItem(
+    return ListItem.toggle(
       title: Text(appLocalizations.crashlytics),
       subtitle: Text(appLocalizations.crashlyticsTip),
-      delegate: SwitchDelegate(
-        value: crashlytics,
-        onChanged: (bool value) {
-          ref
-              .read(appSettingProvider.notifier)
-              .update((state) => state.copyWith(crashlytics: value));
-        },
-      ),
+      value: crashlytics,
+      onChanged: (bool value) {
+        ref
+            .read(appSettingProvider.notifier)
+            .update((state) => state.copyWith(crashlytics: value));
+      },
     );
   }
 }
@@ -240,20 +229,19 @@ class AutoCheckUpdateItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final appLocalizations = context.appLocalizations;
     final autoCheckUpdate = ref.watch(
       appSettingProvider.select((state) => state.autoCheckUpdate),
     );
-    return ListItem.switchItem(
+    return ListItem.toggle(
       title: Text(appLocalizations.autoCheckUpdate),
       subtitle: Text(appLocalizations.autoCheckUpdateDesc),
-      delegate: SwitchDelegate(
-        value: autoCheckUpdate,
-        onChanged: (bool value) {
-          ref
-              .read(appSettingProvider.notifier)
-              .update((state) => state.copyWith(autoCheckUpdate: value));
-        },
-      ),
+      value: autoCheckUpdate,
+      onChanged: (bool value) {
+        ref
+            .read(appSettingProvider.notifier)
+            .update((state) => state.copyWith(autoCheckUpdate: value));
+      },
     );
   }
 }
@@ -261,27 +249,25 @@ class AutoCheckUpdateItem extends ConsumerWidget {
 class ApplicationSettingView extends StatelessWidget {
   const ApplicationSettingView({super.key});
 
-  String getLocaleString(Locale? locale) {
-    if (locale == null) return appLocalizations.defaultText;
-    return Intl.message(locale.toString());
-  }
-
   @override
   Widget build(BuildContext context) {
-    List<Widget> items = [
-      MinimizeItem(),
-      if (system.isDesktop) ...[AutoLaunchItem(), SilentLaunchItem()],
-      AutoRunItem(),
-      if (system.isAndroid) ...[HiddenItem()],
-      AnimateTabItem(),
-      OpenLogsItem(),
-      CloseConnectionsItem(),
-      UsageItem(),
-      if (system.isAndroid) CrashlyticsItem(),
-      AutoCheckUpdateItem(),
+    final List<Widget> items = [
+      const MinimizeItem(),
+      if (system.isDesktop) ...[
+        const AutoLaunchItem(),
+        const SilentLaunchItem(),
+      ],
+      const AutoRunItem(),
+      if (system.isAndroid) ...[const HiddenItem()],
+      const AnimateTabItem(),
+      const OpenLogsItem(),
+      const CloseConnectionsItem(),
+      const UsageItem(),
+      if (system.isAndroid) const CrashlyticsItem(),
+      const AutoCheckUpdateItem(),
     ];
     return BaseScaffold(
-      title: appLocalizations.application,
+      title: context.appLocalizations.application,
       body: ListView.separated(
         itemBuilder: (_, index) {
           final item = items[index];

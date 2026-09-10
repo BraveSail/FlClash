@@ -1,7 +1,6 @@
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
-import 'package:fl_clash/plugins/app.dart';
 import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/widgets/widgets.dart';
@@ -26,16 +25,12 @@ class TrackerInfoItem extends ConsumerWidget {
     return globalState.measure.bodySmallHeight + 20;
   }
 
-  Future<ImageProvider?> _getPackageIcon(TrackerInfo connection) async {
-    return await app?.getPackageIcon(connection.metadata.process);
-  }
-
-  String _getSourceText(TrackerInfo trackerInfo) {
+  String _getSourceText(BuildContext context, TrackerInfo trackerInfo) {
     final progress = trackerInfo.progressText.isNotEmpty
         ? '${trackerInfo.progressText} · '
         : '';
     final traffic = Traffic(up: trackerInfo.upload, down: trackerInfo.download);
-    return '${trackerInfo.start.lastUpdateTimeDesc} · $progress${traffic.desc}';
+    return '${trackerInfo.start.getLastUpdateTimeDesc(context)} · $progress${traffic.desc}';
   }
 
   @override
@@ -50,25 +45,9 @@ class TrackerInfoItem extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(trackerInfo.desc, style: context.textTheme.bodyLarge),
-        // Row(
-        //   mainAxisSize: MainAxisSize.max,
-        //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        //   spacing: 8,
-        //   children: [
-        //     Flexible(
-        //       child: Text(trackerInfo.desc, style: context.textTheme.bodyLarge),
-        //     ),
-        //     Text(
-        //       trackerInfo.start.lastUpdateTimeDesc,
-        //       style: context.textTheme.bodySmall?.copyWith(
-        //         color: context.colorScheme.onSurface.opacity60,
-        //       ),
-        //     ),
-        //   ],
-        // ),
         const SizedBox(height: 6),
         Text(
-          _getSourceText(trackerInfo),
+          _getSourceText(context, trackerInfo),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: context.textTheme.bodyMedium?.copyWith(
@@ -86,7 +65,7 @@ class TrackerInfoItem extends ConsumerWidget {
         children: [
           Flexible(
             child: ListView.separated(
-              separatorBuilder: (_, _) => SizedBox(width: 6),
+              separatorBuilder: (_, _) => const SizedBox(width: 6),
               padding: EdgeInsets.zero,
               scrollDirection: Axis.horizontal,
               itemCount: trackerInfo.chains.length,
@@ -105,7 +84,7 @@ class TrackerInfoItem extends ConsumerWidget {
               },
             ),
           ),
-          if (trailing != null) trailing!,
+          ?trailing,
         ],
       ),
     );
@@ -121,20 +100,9 @@ class TrackerInfoItem extends ConsumerWidget {
               margin: const EdgeInsets.only(top: 4),
               width: 42,
               height: 42,
-              child: FutureBuilder<ImageProvider?>(
-                future: _getPackageIcon(trackerInfo),
-                builder: (_, snapshot) {
-                  if (!snapshot.hasData && snapshot.data == null) {
-                    return Container();
-                  } else {
-                    return Image(
-                      image: snapshot.data!,
-                      gaplessPlayback: true,
-                      width: 42,
-                      height: 42,
-                    );
-                  }
-                },
+              child: PackageIcon(
+                packageName: trackerInfo.metadata.process,
+                size: 42,
               ),
             ),
           )
@@ -144,9 +112,8 @@ class TrackerInfoItem extends ConsumerWidget {
       onTap: () {
         showExtend(
           context,
-          builder: (_, type) {
+          builder: (_) {
             return AdaptiveSheetScaffold(
-              type: type,
               body: TrackerInfoDetailView(trackerInfo: trackerInfo),
               title: detailTitle,
             );
@@ -162,7 +129,7 @@ class TrackerInfoItem extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             spacing: 12,
             children: [
-              if (icon != null) icon,
+              ?icon,
               Flexible(child: title),
             ],
           ),
@@ -221,7 +188,7 @@ class TrackerInfoDetailView extends StatelessWidget {
     return destinationIP;
   }
 
-  Widget _buildChains() {
+  Widget _buildChains(BuildContext context) {
     final chains = Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -237,7 +204,7 @@ class TrackerInfoDetailView extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: 20,
         children: [
-          Text(appLocalizations.proxyChains),
+          Text(context.appLocalizations.proxyChains),
           Flexible(child: chains),
         ],
       ),
@@ -261,11 +228,11 @@ class TrackerInfoDetailView extends StatelessWidget {
               Text(title),
               if (quickCopy)
                 Padding(
-                  padding: EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.only(top: 4),
                   child: IconButton(
                     visualDensity: VisualDensity.compact,
                     padding: EdgeInsets.zero,
-                    icon: Icon(Icons.content_copy, size: 18),
+                    icon: const Icon(Icons.content_copy, size: 18),
                     onPressed: () {},
                   ),
                 ),
@@ -279,6 +246,7 @@ class TrackerInfoDetailView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     final items = [
       _buildItem(
         title: appLocalizations.creationTime,
@@ -341,11 +309,11 @@ class TrackerInfoDetailView extends StatelessWidget {
           title: appLocalizations.remoteDestination,
           desc: trackerInfo.metadata.remoteDestination,
         ),
-      _buildChains(),
+      _buildChains(context),
     ];
     return SelectionArea(
       child: ListView.builder(
-        padding: EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         itemCount: items.length,
         itemBuilder: (_, index) {
           return items[index];

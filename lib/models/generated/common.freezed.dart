@@ -1208,7 +1208,6 @@ $MetadataCopyWith<$Res> get metadata {
 /// @nodoc
 mixin _$Log {
 
-// @JsonKey(fromJson: _logId) required String id,
 @JsonKey(name: 'LogLevel') LogLevel get logLevel;@JsonKey(name: 'Payload') String get payload;@JsonKey(fromJson: _logDateTime) String get dateTime;
 /// Create a copy of Log
 /// with the given fields replaced by the non-null parameter values.
@@ -1408,7 +1407,6 @@ class _Log implements Log {
   const _Log({@JsonKey(name: 'LogLevel') this.logLevel = LogLevel.info, @JsonKey(name: 'Payload') this.payload = '', @JsonKey(fromJson: _logDateTime) required this.dateTime});
   factory _Log.fromJson(Map<String, dynamic> json) => _$LogFromJson(json);
 
-// @JsonKey(fromJson: _logId) required String id,
 @override@JsonKey(name: 'LogLevel') final  LogLevel logLevel;
 @override@JsonKey(name: 'Payload') final  String payload;
 @override@JsonKey(fromJson: _logDateTime) final  String dateTime;
@@ -2035,7 +2033,7 @@ as bool,
 /// @nodoc
 mixin _$DAVProps {
 
- String get uri; String get user; String get password; String get fileName;
+ String get uri; String get user;@JsonKey(fromJson: _decodeDavPassword, toJson: _encodeDavPassword) String get password; String get fileName;
 /// Create a copy of DAVProps
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2055,10 +2053,6 @@ bool operator ==(Object other) {
 @override
 int get hashCode => Object.hash(runtimeType,uri,user,password,fileName);
 
-@override
-String toString() {
-  return 'DAVProps(uri: $uri, user: $user, password: $password, fileName: $fileName)';
-}
 
 
 }
@@ -2068,7 +2062,7 @@ abstract mixin class $DAVPropsCopyWith<$Res>  {
   factory $DAVPropsCopyWith(DAVProps value, $Res Function(DAVProps) _then) = _$DAVPropsCopyWithImpl;
 @useResult
 $Res call({
- String uri, String user, String password, String fileName
+ String uri, String user,@JsonKey(fromJson: _decodeDavPassword, toJson: _encodeDavPassword) String password, String fileName
 });
 
 
@@ -2176,7 +2170,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String uri,  String user,  String password,  String fileName)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String uri,  String user, @JsonKey(fromJson: _decodeDavPassword, toJson: _encodeDavPassword)  String password,  String fileName)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DAVProps() when $default != null:
 return $default(_that.uri,_that.user,_that.password,_that.fileName);case _:
@@ -2197,7 +2191,7 @@ return $default(_that.uri,_that.user,_that.password,_that.fileName);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String uri,  String user,  String password,  String fileName)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String uri,  String user, @JsonKey(fromJson: _decodeDavPassword, toJson: _encodeDavPassword)  String password,  String fileName)  $default,) {final _that = this;
 switch (_that) {
 case _DAVProps():
 return $default(_that.uri,_that.user,_that.password,_that.fileName);case _:
@@ -2217,7 +2211,7 @@ return $default(_that.uri,_that.user,_that.password,_that.fileName);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String uri,  String user,  String password,  String fileName)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String uri,  String user, @JsonKey(fromJson: _decodeDavPassword, toJson: _encodeDavPassword)  String password,  String fileName)?  $default,) {final _that = this;
 switch (_that) {
 case _DAVProps() when $default != null:
 return $default(_that.uri,_that.user,_that.password,_that.fileName);case _:
@@ -2231,13 +2225,13 @@ return $default(_that.uri,_that.user,_that.password,_that.fileName);case _:
 /// @nodoc
 @JsonSerializable()
 
-class _DAVProps implements DAVProps {
-  const _DAVProps({required this.uri, required this.user, required this.password, this.fileName = defaultDavFileName});
+class _DAVProps extends DAVProps {
+  const _DAVProps({required this.uri, required this.user, @JsonKey(fromJson: _decodeDavPassword, toJson: _encodeDavPassword) this.password = '', this.fileName = defaultDavFileName}): super._();
   factory _DAVProps.fromJson(Map<String, dynamic> json) => _$DAVPropsFromJson(json);
 
 @override final  String uri;
 @override final  String user;
-@override final  String password;
+@override@JsonKey(fromJson: _decodeDavPassword, toJson: _encodeDavPassword) final  String password;
 @override@JsonKey() final  String fileName;
 
 /// Create a copy of DAVProps
@@ -2260,10 +2254,6 @@ bool operator ==(Object other) {
 @override
 int get hashCode => Object.hash(runtimeType,uri,user,password,fileName);
 
-@override
-String toString() {
-  return 'DAVProps(uri: $uri, user: $user, password: $password, fileName: $fileName)';
-}
 
 
 }
@@ -2273,7 +2263,7 @@ abstract mixin class _$DAVPropsCopyWith<$Res> implements $DAVPropsCopyWith<$Res>
   factory _$DAVPropsCopyWith(_DAVProps value, $Res Function(_DAVProps) _then) = __$DAVPropsCopyWithImpl;
 @override @useResult
 $Res call({
- String uri, String user, String password, String fileName
+ String uri, String user,@JsonKey(fromJson: _decodeDavPassword, toJson: _encodeDavPassword) String password, String fileName
 });
 
 
@@ -2306,7 +2296,7 @@ as String,
 /// @nodoc
 mixin _$FileInfo {
 
- int get size; DateTime get lastModified;
+ int get size; DateTime? get lastModified;
 /// Create a copy of FileInfo
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2337,7 +2327,7 @@ abstract mixin class $FileInfoCopyWith<$Res>  {
   factory $FileInfoCopyWith(FileInfo value, $Res Function(FileInfo) _then) = _$FileInfoCopyWithImpl;
 @useResult
 $Res call({
- int size, DateTime lastModified
+ int size, DateTime? lastModified
 });
 
 
@@ -2354,11 +2344,11 @@ class _$FileInfoCopyWithImpl<$Res>
 
 /// Create a copy of FileInfo
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? size = null,Object? lastModified = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? size = null,Object? lastModified = freezed,}) {
   return _then(_self.copyWith(
 size: null == size ? _self.size : size // ignore: cast_nullable_to_non_nullable
-as int,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
-as DateTime,
+as int,lastModified: freezed == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
+as DateTime?,
   ));
 }
 
@@ -2443,7 +2433,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int size,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int size,  DateTime? lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _FileInfo() when $default != null:
 return $default(_that.size,_that.lastModified);case _:
@@ -2464,7 +2454,7 @@ return $default(_that.size,_that.lastModified);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int size,  DateTime lastModified)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int size,  DateTime? lastModified)  $default,) {final _that = this;
 switch (_that) {
 case _FileInfo():
 return $default(_that.size,_that.lastModified);case _:
@@ -2484,7 +2474,7 @@ return $default(_that.size,_that.lastModified);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int size,  DateTime lastModified)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int size,  DateTime? lastModified)?  $default,) {final _that = this;
 switch (_that) {
 case _FileInfo() when $default != null:
 return $default(_that.size,_that.lastModified);case _:
@@ -2499,11 +2489,11 @@ return $default(_that.size,_that.lastModified);case _:
 
 
 class _FileInfo implements FileInfo {
-  const _FileInfo({required this.size, required this.lastModified});
+  const _FileInfo({required this.size, this.lastModified});
   
 
 @override final  int size;
-@override final  DateTime lastModified;
+@override final  DateTime? lastModified;
 
 /// Create a copy of FileInfo
 /// with the given fields replaced by the non-null parameter values.
@@ -2535,7 +2525,7 @@ abstract mixin class _$FileInfoCopyWith<$Res> implements $FileInfoCopyWith<$Res>
   factory _$FileInfoCopyWith(_FileInfo value, $Res Function(_FileInfo) _then) = __$FileInfoCopyWithImpl;
 @override @useResult
 $Res call({
- int size, DateTime lastModified
+ int size, DateTime? lastModified
 });
 
 
@@ -2552,11 +2542,11 @@ class __$FileInfoCopyWithImpl<$Res>
 
 /// Create a copy of FileInfo
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? size = null,Object? lastModified = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? size = null,Object? lastModified = freezed,}) {
   return _then(_FileInfo(
 size: null == size ? _self.size : size // ignore: cast_nullable_to_non_nullable
-as int,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
-as DateTime,
+as int,lastModified: freezed == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
+as DateTime?,
   ));
 }
 
@@ -3357,278 +3347,9 @@ as String,
 
 
 /// @nodoc
-mixin _$Proxy {
-
- String get name; String get type; String? get now;
-/// Create a copy of Proxy
-/// with the given fields replaced by the non-null parameter values.
-@JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-$ProxyCopyWith<Proxy> get copyWith => _$ProxyCopyWithImpl<Proxy>(this as Proxy, _$identity);
-
-  /// Serializes this Proxy to a JSON map.
-  Map<String, dynamic> toJson();
-
-
-@override
-bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Proxy&&(identical(other.name, name) || other.name == name)&&(identical(other.type, type) || other.type == type)&&(identical(other.now, now) || other.now == now));
-}
-
-@JsonKey(includeFromJson: false, includeToJson: false)
-@override
-int get hashCode => Object.hash(runtimeType,name,type,now);
-
-@override
-String toString() {
-  return 'Proxy(name: $name, type: $type, now: $now)';
-}
-
-
-}
-
-/// @nodoc
-abstract mixin class $ProxyCopyWith<$Res>  {
-  factory $ProxyCopyWith(Proxy value, $Res Function(Proxy) _then) = _$ProxyCopyWithImpl;
-@useResult
-$Res call({
- String name, String type, String? now
-});
-
-
-
-
-}
-/// @nodoc
-class _$ProxyCopyWithImpl<$Res>
-    implements $ProxyCopyWith<$Res> {
-  _$ProxyCopyWithImpl(this._self, this._then);
-
-  final Proxy _self;
-  final $Res Function(Proxy) _then;
-
-/// Create a copy of Proxy
-/// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? type = null,Object? now = freezed,}) {
-  return _then(_self.copyWith(
-name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
-as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
-as String,now: freezed == now ? _self.now : now // ignore: cast_nullable_to_non_nullable
-as String?,
-  ));
-}
-
-}
-
-
-/// Adds pattern-matching-related methods to [Proxy].
-extension ProxyPatterns on Proxy {
-/// A variant of `map` that fallback to returning `orElse`.
-///
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case final Subclass value:
-///     return ...;
-///   case _:
-///     return orElse();
-/// }
-/// ```
-
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _Proxy value)?  $default,{required TResult orElse(),}){
-final _that = this;
-switch (_that) {
-case _Proxy() when $default != null:
-return $default(_that);case _:
-  return orElse();
-
-}
-}
-/// A `switch`-like method, using callbacks.
-///
-/// Callbacks receives the raw object, upcasted.
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case final Subclass value:
-///     return ...;
-///   case final Subclass2 value:
-///     return ...;
-/// }
-/// ```
-
-@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _Proxy value)  $default,){
-final _that = this;
-switch (_that) {
-case _Proxy():
-return $default(_that);case _:
-  throw StateError('Unexpected subclass');
-
-}
-}
-/// A variant of `map` that fallback to returning `null`.
-///
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case final Subclass value:
-///     return ...;
-///   case _:
-///     return null;
-/// }
-/// ```
-
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _Proxy value)?  $default,){
-final _that = this;
-switch (_that) {
-case _Proxy() when $default != null:
-return $default(_that);case _:
-  return null;
-
-}
-}
-/// A variant of `when` that fallback to an `orElse` callback.
-///
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case Subclass(:final field):
-///     return ...;
-///   case _:
-///     return orElse();
-/// }
-/// ```
-
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String name,  String type,  String? now)?  $default,{required TResult orElse(),}) {final _that = this;
-switch (_that) {
-case _Proxy() when $default != null:
-return $default(_that.name,_that.type,_that.now);case _:
-  return orElse();
-
-}
-}
-/// A `switch`-like method, using callbacks.
-///
-/// As opposed to `map`, this offers destructuring.
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case Subclass(:final field):
-///     return ...;
-///   case Subclass2(:final field2):
-///     return ...;
-/// }
-/// ```
-
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String name,  String type,  String? now)  $default,) {final _that = this;
-switch (_that) {
-case _Proxy():
-return $default(_that.name,_that.type,_that.now);case _:
-  throw StateError('Unexpected subclass');
-
-}
-}
-/// A variant of `when` that fallback to returning `null`
-///
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case Subclass(:final field):
-///     return ...;
-///   case _:
-///     return null;
-/// }
-/// ```
-
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String name,  String type,  String? now)?  $default,) {final _that = this;
-switch (_that) {
-case _Proxy() when $default != null:
-return $default(_that.name,_that.type,_that.now);case _:
-  return null;
-
-}
-}
-
-}
-
-/// @nodoc
-@JsonSerializable()
-
-class _Proxy implements Proxy {
-  const _Proxy({required this.name, required this.type, this.now});
-  factory _Proxy.fromJson(Map<String, dynamic> json) => _$ProxyFromJson(json);
-
-@override final  String name;
-@override final  String type;
-@override final  String? now;
-
-/// Create a copy of Proxy
-/// with the given fields replaced by the non-null parameter values.
-@override @JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-_$ProxyCopyWith<_Proxy> get copyWith => __$ProxyCopyWithImpl<_Proxy>(this, _$identity);
-
-@override
-Map<String, dynamic> toJson() {
-  return _$ProxyToJson(this, );
-}
-
-@override
-bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Proxy&&(identical(other.name, name) || other.name == name)&&(identical(other.type, type) || other.type == type)&&(identical(other.now, now) || other.now == now));
-}
-
-@JsonKey(includeFromJson: false, includeToJson: false)
-@override
-int get hashCode => Object.hash(runtimeType,name,type,now);
-
-@override
-String toString() {
-  return 'Proxy(name: $name, type: $type, now: $now)';
-}
-
-
-}
-
-/// @nodoc
-abstract mixin class _$ProxyCopyWith<$Res> implements $ProxyCopyWith<$Res> {
-  factory _$ProxyCopyWith(_Proxy value, $Res Function(_Proxy) _then) = __$ProxyCopyWithImpl;
-@override @useResult
-$Res call({
- String name, String type, String? now
-});
-
-
-
-
-}
-/// @nodoc
-class __$ProxyCopyWithImpl<$Res>
-    implements _$ProxyCopyWith<$Res> {
-  __$ProxyCopyWithImpl(this._self, this._then);
-
-  final _Proxy _self;
-  final $Res Function(_Proxy) _then;
-
-/// Create a copy of Proxy
-/// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? type = null,Object? now = freezed,}) {
-  return _then(_Proxy(
-name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
-as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
-as String,now: freezed == now ? _self.now : now // ignore: cast_nullable_to_non_nullable
-as String?,
-  ));
-}
-
-
-}
-
-
-/// @nodoc
 mixin _$Group {
 
- GroupType get type; List<Proxy> get all; String? get now; bool? get hidden; String? get testUrl; String get icon; String get name;
+@JsonKey(fromJson: GroupType.parse) GroupType get type; List<Proxy> get all; String? get now; bool? get hidden; String? get testUrl; String get icon; String get name;
 /// Create a copy of Group
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -3661,7 +3382,7 @@ abstract mixin class $GroupCopyWith<$Res>  {
   factory $GroupCopyWith(Group value, $Res Function(Group) _then) = _$GroupCopyWithImpl;
 @useResult
 $Res call({
- GroupType type, List<Proxy> all, String? now, bool? hidden, String? testUrl, String icon, String name
+@JsonKey(fromJson: GroupType.parse) GroupType type, List<Proxy> all, String? now, bool? hidden, String? testUrl, String icon, String name
 });
 
 
@@ -3772,7 +3493,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( GroupType type,  List<Proxy> all,  String? now,  bool? hidden,  String? testUrl,  String icon,  String name)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: GroupType.parse)  GroupType type,  List<Proxy> all,  String? now,  bool? hidden,  String? testUrl,  String icon,  String name)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Group() when $default != null:
 return $default(_that.type,_that.all,_that.now,_that.hidden,_that.testUrl,_that.icon,_that.name);case _:
@@ -3793,7 +3514,7 @@ return $default(_that.type,_that.all,_that.now,_that.hidden,_that.testUrl,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( GroupType type,  List<Proxy> all,  String? now,  bool? hidden,  String? testUrl,  String icon,  String name)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: GroupType.parse)  GroupType type,  List<Proxy> all,  String? now,  bool? hidden,  String? testUrl,  String icon,  String name)  $default,) {final _that = this;
 switch (_that) {
 case _Group():
 return $default(_that.type,_that.all,_that.now,_that.hidden,_that.testUrl,_that.icon,_that.name);case _:
@@ -3813,7 +3534,7 @@ return $default(_that.type,_that.all,_that.now,_that.hidden,_that.testUrl,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( GroupType type,  List<Proxy> all,  String? now,  bool? hidden,  String? testUrl,  String icon,  String name)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: GroupType.parse)  GroupType type,  List<Proxy> all,  String? now,  bool? hidden,  String? testUrl,  String icon,  String name)?  $default,) {final _that = this;
 switch (_that) {
 case _Group() when $default != null:
 return $default(_that.type,_that.all,_that.now,_that.hidden,_that.testUrl,_that.icon,_that.name);case _:
@@ -3828,10 +3549,10 @@ return $default(_that.type,_that.all,_that.now,_that.hidden,_that.testUrl,_that.
 @JsonSerializable()
 
 class _Group implements Group {
-  const _Group({required this.type, final  List<Proxy> all = const [], this.now, this.hidden, this.testUrl, this.icon = '', required this.name}): _all = all;
+  const _Group({@JsonKey(fromJson: GroupType.parse) required this.type, final  List<Proxy> all = const [], this.now, this.hidden, this.testUrl, this.icon = '', required this.name}): _all = all;
   factory _Group.fromJson(Map<String, dynamic> json) => _$GroupFromJson(json);
 
-@override final  GroupType type;
+@override@JsonKey(fromJson: GroupType.parse) final  GroupType type;
  final  List<Proxy> _all;
 @override@JsonKey() List<Proxy> get all {
   if (_all is EqualUnmodifiableListView) return _all;
@@ -3878,7 +3599,7 @@ abstract mixin class _$GroupCopyWith<$Res> implements $GroupCopyWith<$Res> {
   factory _$GroupCopyWith(_Group value, $Res Function(_Group) _then) = __$GroupCopyWithImpl;
 @override @useResult
 $Res call({
- GroupType type, List<Proxy> all, String? now, bool? hidden, String? testUrl, String icon, String name
+@JsonKey(fromJson: GroupType.parse) GroupType type, List<Proxy> all, String? now, bool? hidden, String? testUrl, String icon, String name
 });
 
 
@@ -6015,6 +5736,266 @@ class __$UpdatingMessageCopyWithImpl<$Res>
 label: null == label ? _self.label : label // ignore: cast_nullable_to_non_nullable
 as String,message: null == message ? _self.message : message // ignore: cast_nullable_to_non_nullable
 as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+mixin _$IconButtonData {
+
+ IconData get icon; VoidCallback get onPressed;
+/// Create a copy of IconButtonData
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$IconButtonDataCopyWith<IconButtonData> get copyWith => _$IconButtonDataCopyWithImpl<IconButtonData>(this as IconButtonData, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is IconButtonData&&(identical(other.icon, icon) || other.icon == icon)&&(identical(other.onPressed, onPressed) || other.onPressed == onPressed));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,icon,onPressed);
+
+@override
+String toString() {
+  return 'IconButtonData(icon: $icon, onPressed: $onPressed)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $IconButtonDataCopyWith<$Res>  {
+  factory $IconButtonDataCopyWith(IconButtonData value, $Res Function(IconButtonData) _then) = _$IconButtonDataCopyWithImpl;
+@useResult
+$Res call({
+ IconData icon, VoidCallback onPressed
+});
+
+
+
+
+}
+/// @nodoc
+class _$IconButtonDataCopyWithImpl<$Res>
+    implements $IconButtonDataCopyWith<$Res> {
+  _$IconButtonDataCopyWithImpl(this._self, this._then);
+
+  final IconButtonData _self;
+  final $Res Function(IconButtonData) _then;
+
+/// Create a copy of IconButtonData
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? icon = null,Object? onPressed = null,}) {
+  return _then(_self.copyWith(
+icon: null == icon ? _self.icon : icon // ignore: cast_nullable_to_non_nullable
+as IconData,onPressed: null == onPressed ? _self.onPressed : onPressed // ignore: cast_nullable_to_non_nullable
+as VoidCallback,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [IconButtonData].
+extension IconButtonDataPatterns on IconButtonData {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _IconButtonData value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _IconButtonData() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _IconButtonData value)  $default,){
+final _that = this;
+switch (_that) {
+case _IconButtonData():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _IconButtonData value)?  $default,){
+final _that = this;
+switch (_that) {
+case _IconButtonData() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( IconData icon,  VoidCallback onPressed)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _IconButtonData() when $default != null:
+return $default(_that.icon,_that.onPressed);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( IconData icon,  VoidCallback onPressed)  $default,) {final _that = this;
+switch (_that) {
+case _IconButtonData():
+return $default(_that.icon,_that.onPressed);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( IconData icon,  VoidCallback onPressed)?  $default,) {final _that = this;
+switch (_that) {
+case _IconButtonData() when $default != null:
+return $default(_that.icon,_that.onPressed);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class _IconButtonData implements IconButtonData {
+  const _IconButtonData({required this.icon, required this.onPressed});
+  
+
+@override final  IconData icon;
+@override final  VoidCallback onPressed;
+
+/// Create a copy of IconButtonData
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$IconButtonDataCopyWith<_IconButtonData> get copyWith => __$IconButtonDataCopyWithImpl<_IconButtonData>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _IconButtonData&&(identical(other.icon, icon) || other.icon == icon)&&(identical(other.onPressed, onPressed) || other.onPressed == onPressed));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,icon,onPressed);
+
+@override
+String toString() {
+  return 'IconButtonData(icon: $icon, onPressed: $onPressed)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$IconButtonDataCopyWith<$Res> implements $IconButtonDataCopyWith<$Res> {
+  factory _$IconButtonDataCopyWith(_IconButtonData value, $Res Function(_IconButtonData) _then) = __$IconButtonDataCopyWithImpl;
+@override @useResult
+$Res call({
+ IconData icon, VoidCallback onPressed
+});
+
+
+
+
+}
+/// @nodoc
+class __$IconButtonDataCopyWithImpl<$Res>
+    implements _$IconButtonDataCopyWith<$Res> {
+  __$IconButtonDataCopyWithImpl(this._self, this._then);
+
+  final _IconButtonData _self;
+  final $Res Function(_IconButtonData) _then;
+
+/// Create a copy of IconButtonData
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? icon = null,Object? onPressed = null,}) {
+  return _then(_IconButtonData(
+icon: null == icon ? _self.icon : icon // ignore: cast_nullable_to_non_nullable
+as IconData,onPressed: null == onPressed ? _self.onPressed : onPressed // ignore: cast_nullable_to_non_nullable
+as VoidCallback,
   ));
 }
 

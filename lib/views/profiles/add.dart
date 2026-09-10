@@ -1,6 +1,6 @@
 import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/controller.dart';
 import 'package:fl_clash/pages/scan.dart';
+import 'package:fl_clash/providers/action.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter/material.dart';
@@ -11,16 +11,22 @@ class AddProfileView extends StatelessWidget {
   const AddProfileView({super.key, required this.context});
 
   Future<void> _handleAddProfileFormFile() async {
-    appController.addProfileFormFile();
+    globalState.container
+        .read(profilesActionProvider.notifier)
+        .addProfileFormFile();
   }
 
   Future<void> _handleAddProfileFormURL(String url) async {
-    appController.addProfileFormURL(url);
+    globalState.container
+        .read(profilesActionProvider.notifier)
+        .addProfileFormURL(url);
   }
 
   Future<void> _toScan() async {
     if (system.isDesktop) {
-      appController.addProfileFormQrCode();
+      globalState.container
+          .read(profilesActionProvider.notifier)
+          .addProfileFormQrCode();
       return;
     }
     final url = await BaseNavigator.push(context, const ScanPage());
@@ -32,12 +38,14 @@ class AddProfileView extends StatelessWidget {
   }
 
   Future<void> _toAdd() async {
+    final appLocalizations = context.appLocalizations;
     final url = await globalState.showCommonDialog<String>(
       child: InputDialog(
         autovalidateMode: AutovalidateMode.onUnfocus,
         title: appLocalizations.importFromURL,
         labelText: appLocalizations.url,
         value: '',
+        inputFormatters: TextInputLimits.limit(TextInputLimits.url),
         validator: (value) {
           if (value == null || value.isEmpty) {
             return appLocalizations.emptyTip('').trim();
@@ -56,6 +64,7 @@ class AddProfileView extends StatelessWidget {
 
   @override
   Widget build(context) {
+    final appLocalizations = context.appLocalizations;
     return ListView(
       children: [
         ListItem(
@@ -105,6 +114,7 @@ class _URLFormDialogState extends State<URLFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     return CommonDialog(
       title: appLocalizations.importFromURL,
       actions: [
@@ -122,6 +132,7 @@ class _URLFormDialogState extends State<URLFormDialog> {
               keyboardType: TextInputType.url,
               minLines: 1,
               maxLines: 5,
+              inputFormatters: TextInputLimits.limit(TextInputLimits.url),
               onSubmitted: (_) {
                 _handleAddProfileFormURL();
               },

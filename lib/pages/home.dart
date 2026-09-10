@@ -1,22 +1,33 @@
 import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/controller.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/manager/app_manager.dart';
 import 'package:fl_clash/models/common.dart';
 import 'package:fl_clash/providers/providers.dart';
+import 'package:fl_clash/state.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 typedef OnSelected = void Function(int index);
 
-class HomePage extends StatelessWidget {
+class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
+  void _handleToPage(PageLabel pageLabel) {
+    globalState.container
+        .read(currentPageLabelProvider.notifier)
+        .toPage(pageLabel);
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasViewSize = ref.watch(
+      viewSizeProvider.select((size) => !size.isEmpty),
+    );
+    if (!hasViewSize) {
+      return const SizedBox.shrink();
+    }
     return HomeBackScopeContainer(
       child: AppSidebarContainer(
         child: Material(
@@ -24,9 +35,6 @@ class HomePage extends StatelessWidget {
           child: Consumer(
             builder: (context, ref, child) {
               final state = ref.watch(navigationStateProvider);
-              final systemUiOverlayStyle = ref.read(
-                systemUiOverlayStyleStateProvider,
-              );
               final isMobile = state.viewMode == ViewMode.mobile;
               final navigationItems = state.navigationItems;
               final currentIndex = state.currentIndex;
@@ -42,44 +50,40 @@ class HomePage extends StatelessWidget {
                       )
                       .toList(),
                   onDestinationSelected: (index) {
-                    appController.toPage(navigationItems[index].label);
+                    _handleToPage(navigationItems[index].label);
                   },
                   selectedIndex: currentIndex,
                 ),
               );
-              if (isMobile) {
-                return AnnotatedRegion<SystemUiOverlayStyle>(
-                  value: systemUiOverlayStyle.copyWith(
-                    systemNavigationBarColor:
-                        context.colorScheme.surfaceContainer,
-                  ),
-                  child: Column(
-                    children: [
-                      Flexible(
-                        flex: 1,
-                        child: MediaQuery.removePadding(
-                          removeTop: false,
-                          removeBottom: true,
-                          removeLeft: true,
-                          removeRight: true,
-                          context: context,
-                          child: child!,
-                        ),
-                      ),
-                      MediaQuery.removePadding(
-                        removeTop: true,
-                        removeBottom: false,
-                        removeLeft: true,
-                        removeRight: true,
+              return Column(
+                children: [
+                  Flexible(
+                    flex: 1,
+                    child: FocusTraversalGroup(
+                      policy: PageTraversalPolicy(),
+                      child: MediaQuery.removePadding(
+                        removeTop: false,
+                        removeBottom: isMobile,
+                        removeLeft: isMobile,
+                        removeRight: isMobile,
                         context: context,
-                        child: bottomNavigationBar,
+                        child: child!,
                       ),
-                    ],
+                    ),
                   ),
-                );
-              } else {
-                return child!;
-              }
+                  AnimatedVisibility.bottomNavigation(
+                    visible: isMobile,
+                    child: MediaQuery.removePadding(
+                      removeTop: true,
+                      removeBottom: false,
+                      removeLeft: true,
+                      removeRight: true,
+                      context: context,
+                      child: bottomNavigationBar,
+                    ),
+                  ),
+                ],
+              );
             },
             child: Consumer(
               builder: (_, ref, _) {
@@ -92,16 +96,38 @@ class HomePage extends StatelessWidget {
                   pageBuilder: (_, index) {
                     final navigationItem = navigationItems[index];
                     final navigationView = navigationItem.builder(context);
+                    final scopedView = PageFocusScope(child: navigationView);
                     final view = KeepScope(
+                      key: ValueKey(navigationItem.label),
                       keep: navigationItem.keep,
                       child: isMobile
-                          ? navigationView
+                          ? scopedView
                           : Navigator(
-                              pages: [MaterialPage(child: navigationView)],
+                              key: ValueKey(
+                                '${navigationItem.label.name}_navigator',
+                              ),
+                              pages: [MaterialPage(child: scopedView)],
                               onDidRemovePage: (_) {},
                             ),
                     );
-                    return view;
+                    return Consumer(
+                      key: ValueKey(navigationItem.label),
+                      builder: (_, ref, child) {
+                        final isActive = ref.watch(
+                          currentPageLabelProvider.select(
+                            (label) => label == navigationItem.label,
+                          ),
+                        );
+                        return PageActivityScope(
+                          isActive: isActive,
+                          child: ExcludeFocus(
+                            excluding: !isActive,
+                            child: child!,
+                          ),
+                        );
+                      },
+                      child: view,
+                    );
                   },
                 );
               },
@@ -130,7 +156,7 @@ class _HomePageViewState extends ConsumerState<_HomePageView> {
   late PageController _pageController;
 
   @override
-  initState() {
+  void initState() {
     super.initState();
     _pageController = PageController(initialPage: _pageIndex);
     ref.listenManual(currentPageLabelProvider, (prev, next) {
@@ -199,6 +225,15 @@ class _HomePageViewState extends ConsumerState<_HomePageView> {
       controller: _pageController,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: itemCount,
+      findChildIndexCallback: (key) {
+        if (key is! ValueKey<PageLabel>) {
+          return null;
+        }
+        final index = widget.navigationItems.indexWhere(
+          (item) => item.label == key.value,
+        );
+        return index == -1 ? null : index;
+      },
       itemBuilder: (context, index) {
         return widget.pageBuilder(context, index);
       },
@@ -279,7 +314,9 @@ class HomeBackScopeContainer extends ConsumerWidget {
         if (canPop) {
           Navigator.of(realContext).pop();
         } else {
-          await appController.handleBackOrExit();
+          await globalState.container
+              .read(systemActionProvider.notifier)
+              .handleClose();
         }
         return false;
       },

@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/core/core.dart';
 import 'package:fl_clash/l10n/l10n.dart';
 import 'package:fl_clash/manager/hotkey_manager.dart';
 import 'package:fl_clash/manager/manager.dart';
@@ -11,10 +10,10 @@ import 'package:fl_clash/plugins/app.dart';
 import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/state.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'controller.dart';
 import 'pages/pages.dart';
 
 class Application extends ConsumerStatefulWidget {
@@ -47,22 +46,46 @@ class ApplicationState extends ConsumerState<Application> {
   @override
   void initState() {
     super.initState();
+    SystemNavigator.setFrameworkHandlesBack(true);
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
-      final currentContext = globalState.navigatorKey.currentContext;
-      if (currentContext != null) {
-        await appController.attach(currentContext, ref);
+      if (globalState.navigatorKey.currentContext != null) {
+        await globalState.attach();
       } else {
         exit(0);
       }
       _autoUpdateProfilesTask();
-      appController.initLink();
+      _initLink();
       app?.initShortcuts();
+    });
+  }
+
+  void _initLink() {
+    linkManager.initAppLinksListen((url) async {
+      final res = await globalState.showMessage(
+        title: currentAppLocalizations.addProfile,
+        message: TextSpan(
+          children: [
+            TextSpan(text: currentAppLocalizations.doYouWantToPass),
+            TextSpan(
+              text: ' $url ',
+              style: TextStyle(
+                color: context.colorScheme.primary,
+                decoration: TextDecoration.underline,
+                decorationColor: context.colorScheme.primary,
+              ),
+            ),
+            TextSpan(text: currentAppLocalizations.createProfile),
+          ],
+        ),
+      );
+      if (res != true) return;
+      ref.read(profilesActionProvider.notifier).addProfileFormURL(url);
     });
   }
 
   void _autoUpdateProfilesTask() {
     _autoUpdateProfilesTaskTimer = Timer(const Duration(minutes: 20), () async {
-      await appController.autoUpdateProfiles();
+      await ref.read(profilesActionProvider.notifier).autoUpdateProfiles();
       _autoUpdateProfilesTask();
     });
   }
@@ -84,10 +107,10 @@ class ApplicationState extends ConsumerState<Application> {
         child: ConnectivityManager(
           onConnectivityChanged: (results) async {
             commonPrint.log('connectivityChanged ${results.toString()}');
-            appController.updateLocalIp();
+            ref.read(systemActionProvider.notifier).updateLocalIp();
             final hasVpn = results.contains(ConnectivityResult.vpn);
             if (_preHasVpn == hasVpn) {
-              appController.addCheckIp();
+              ref.read(checkIpNumProvider.notifier).add();
             }
             _preHasVpn = hasVpn;
           },
@@ -119,6 +142,7 @@ class ApplicationState extends ConsumerState<Application> {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           navigatorKey: globalState.navigatorKey,
+          onNavigationNotification: (_) => true,
           localizationsDelegates: const [
             AppLocalizations.delegate,
             GlobalMaterialLocalizations.delegate,
@@ -163,11 +187,9 @@ class ApplicationState extends ConsumerState<Application> {
   }
 
   @override
-  Future<void> dispose() async {
+  void dispose() {
     linkManager.destroy();
     _autoUpdateProfilesTaskTimer?.cancel();
-    await coreController.destroy();
-    await appController.handleExit();
     super.dispose();
   }
 }

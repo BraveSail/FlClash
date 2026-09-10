@@ -34,6 +34,8 @@ type UpdateParams struct {
 	ExternalController *string            `json:"external-controller"`
 	Interface          *string            `json:"interface-name"`
 	UnifiedDelay       *bool              `json:"unified-delay"`
+	GeoAutoUpdate      *bool              `json:"geo-auto-update"`
+	GeoUpdateInterval  *int               `json:"geo-update-interval"`
 }
 
 type tunSchema struct {
@@ -46,14 +48,19 @@ type tunSchema struct {
 }
 
 type ChangeProxyParams struct {
-	GroupName *string `json:"group-name"`
-	ProxyName *string `json:"proxy-name"`
+	GroupName string `json:"group-name"`
+	ProxyName string `json:"proxy-name"`
 }
 
 type TestDelayParams struct {
 	ProxyName string `json:"proxy-name"`
 	TestUrl   string `json:"test-url"`
 	Timeout   int64  `json:"timeout"`
+}
+
+type Traffic struct {
+	Up   int64 `json:"up"`
+	Down int64 `json:"down"`
 }
 
 type ExternalProvider struct {
@@ -72,42 +79,42 @@ type ProxiesData struct {
 }
 
 const (
-	messageMethod                  Method = "message"
-	initClashMethod                Method = "initClash"
-	getIsInitMethod                Method = "getIsInit"
-	forceGcMethod                  Method = "forceGc"
-	shutdownMethod                 Method = "shutdown"
-	validateConfigMethod           Method = "validateConfig"
-	updateConfigMethod             Method = "updateConfig"
-	getProxiesMethod               Method = "getProxies"
-	changeProxyMethod              Method = "changeProxy"
-	getTrafficMethod               Method = "getTraffic"
-	getTotalTrafficMethod          Method = "getTotalTraffic"
-	resetTrafficMethod             Method = "resetTraffic"
-	asyncTestDelayMethod           Method = "asyncTestDelay"
-	getConnectionsMethod           Method = "getConnections"
-	closeConnectionsMethod         Method = "closeConnections"
-	resetConnectionsMethod         Method = "resetConnectionsMethod"
-	closeConnectionMethod          Method = "closeConnection"
-	getExternalProvidersMethod     Method = "getExternalProviders"
-	getExternalProviderMethod      Method = "getExternalProvider"
-	getCountryCodeMethod           Method = "getCountryCode"
-	getMemoryMethod                Method = "getMemory"
-	updateGeoDataMethod            Method = "updateGeoData"
-	updateExternalProviderMethod   Method = "updateExternalProvider"
-	sideLoadExternalProviderMethod Method = "sideLoadExternalProvider"
-	startLogMethod                 Method = "startLog"
-	stopLogMethod                  Method = "stopLog"
-	startListenerMethod            Method = "startListener"
-	stopListenerMethod             Method = "stopListener"
-	updateDnsMethod                Method = "updateDns"
-	crashMethod                    Method = "crash"
-	setupConfigMethod              Method = "setupConfig"
-	getConfigMethod                Method = "getConfig"
-	deleteFile                     Method = "deleteFile"
+	messageMethod                  CoreMethod = "message"
+	initClashMethod                CoreMethod = "initClash"
+	getIsInitMethod                CoreMethod = "getIsInit"
+	forceGcMethod                  CoreMethod = "forceGc"
+	shutdownMethod                 CoreMethod = "shutdown"
+	validateConfigMethod           CoreMethod = "validateConfig"
+	updateConfigMethod             CoreMethod = "updateConfig"
+	getProxiesMethod               CoreMethod = "getProxies"
+	changeProxyMethod              CoreMethod = "changeProxy"
+	getTrafficMethod               CoreMethod = "getTraffic"
+	getTotalTrafficMethod          CoreMethod = "getTotalTraffic"
+	resetTrafficMethod             CoreMethod = "resetTraffic"
+	asyncTestDelayMethod           CoreMethod = "asyncTestDelay"
+	getConnectionsMethod           CoreMethod = "getConnections"
+	closeConnectionsMethod         CoreMethod = "closeConnections"
+	resetConnectionsMethod         CoreMethod = "resetConnections"
+	closeConnectionMethod          CoreMethod = "closeConnection"
+	getExternalProvidersMethod     CoreMethod = "getExternalProviders"
+	getExternalProviderMethod      CoreMethod = "getExternalProvider"
+	getCountryCodeMethod           CoreMethod = "getCountryCode"
+	getMemoryMethod                CoreMethod = "getMemory"
+	updateGeoDataMethod            CoreMethod = "updateGeoData"
+	updateExternalProviderMethod   CoreMethod = "updateExternalProvider"
+	sideLoadExternalProviderMethod CoreMethod = "sideLoadExternalProvider"
+	startLogMethod                 CoreMethod = "startLog"
+	stopLogMethod                  CoreMethod = "stopLog"
+	startListenerMethod            CoreMethod = "startListener"
+	stopListenerMethod             CoreMethod = "stopListener"
+	updateDnsMethod                CoreMethod = "updateDns"
+	crashMethod                    CoreMethod = "crash"
+	setupConfigMethod              CoreMethod = "setupConfig"
+	getConfigMethod                CoreMethod = "getConfig"
+	clearEffectMethod              CoreMethod = "clearEffect"
 )
 
-type Method string
+type CoreMethod string
 
 type MessageType string
 
@@ -123,11 +130,19 @@ type Message struct {
 }
 
 const (
-	LogMessage     MessageType = "log"
-	DelayMessage   MessageType = "delay"
-	RequestMessage MessageType = "request"
-	LoadedMessage  MessageType = "loaded"
+	LogMessage       MessageType = "log"
+	DelayMessage     MessageType = "delay"
+	RequestMessage   MessageType = "request"
+	LoadedMessage    MessageType = "loaded"
+	GeoUpdateMessage MessageType = "geoUpdate"
 )
+
+type GeoUpdateStatus struct {
+	Type     string `json:"type"`
+	Updating bool   `json:"updating"`
+	Skipped  bool   `json:"skipped,omitempty"`
+	Error    string `json:"error,omitempty"`
+}
 
 func (message *Message) Json() (string, error) {
 	data, err := json.Marshal(message)
