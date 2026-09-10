@@ -634,10 +634,13 @@ class _PreviewBodyState extends State<_PreviewBody>
   }
 
   void _scrollToLine(int line) {
-    if (!mounted || !_verticalController.hasClients) {
+    if (!mounted) {
       return;
     }
-    final ScrollPosition position = _verticalController.position;
+    final ScrollPosition? position = _verticalPosition;
+    if (position == null) {
+      return;
+    }
     _verticalController.jumpTo(
       (line * _lineHeight - position.viewportDimension / 2).clamp(
         position.minScrollExtent,
@@ -751,12 +754,23 @@ class _PreviewBodyState extends State<_PreviewBody>
     return resolved;
   }
 
-  void _handleVerticalAnimator() {
+  /// The vertical scroll position, or null until the list has actually laid
+  /// out. `hasClients` alone is not enough: `minScrollExtent`/`maxScrollExtent`
+  /// are null until the first layout and reading them then throws.
+  ScrollPosition? get _verticalPosition {
     if (!_verticalController.hasClients) {
+      return null;
+    }
+    final ScrollPosition position = _verticalController.position;
+    return position.hasContentDimensions ? position : null;
+  }
+
+  void _handleVerticalAnimator() {
+    final ScrollPosition? position = _verticalPosition;
+    if (position == null) {
       _verticalAnimator.stop();
       return;
     }
-    final ScrollPosition position = _verticalController.position;
     final double value = _verticalAnimator.value;
     final double clamped = value.clamp(
       position.minScrollExtent,
@@ -787,15 +801,15 @@ class _PreviewBodyState extends State<_PreviewBody>
   void _handlePanEnd(DragEndDetails details) {
     const ScrollPhysics physics = NextClampingScrollPhysics();
     final Offset velocity = details.velocity.pixelsPerSecond;
-    if (_verticalController.hasClients) {
-      final ScrollPosition position = _verticalController.position;
+    final ScrollPosition? vertical = _verticalPosition;
+    if (vertical != null) {
       final Simulation? simulation = physics.createBallisticSimulation(
-        position,
+        vertical,
         -velocity.dy,
       );
       if (simulation != null) {
         _verticalAnimator
-          ..value = position.pixels
+          ..value = vertical.pixels
           ..animateWith(simulation);
       }
     }
@@ -803,9 +817,7 @@ class _PreviewBodyState extends State<_PreviewBody>
     if (dx.abs() > 1 && _maxHorizontal > 0) {
       // The horizontal axis is not a Scrollable, so the metrics a physics would
       // ask for are reproduced from the current offset instead.
-      final double pixelRatio = _verticalController.hasClients
-          ? _verticalController.position.devicePixelRatio
-          : 1;
+      final double pixelRatio = vertical?.devicePixelRatio ?? 1;
       _horizontalAnimator
         ..value = _horizontalOffset.value
         ..animateWith(
@@ -825,10 +837,10 @@ class _PreviewBodyState extends State<_PreviewBody>
         maxHorizontal,
       );
     }
-    if (!_verticalController.hasClients) {
+    final ScrollPosition? position = _verticalPosition;
+    if (position == null) {
       return;
     }
-    final ScrollPosition position = _verticalController.position;
     _verticalController.jumpTo(
       (position.pixels - delta.dy).clamp(
         position.minScrollExtent,
@@ -1004,10 +1016,10 @@ class _PreviewBodyState extends State<_PreviewBody>
       child: AnimatedBuilder(
         animation: _verticalController,
         builder: (context, _) {
-          if (!_verticalController.hasClients) {
+          final ScrollPosition? position = _verticalPosition;
+          if (position == null) {
             return const SizedBox.shrink();
           }
-          final position = _verticalController.position;
           final double extent = position.maxScrollExtent;
           final double track = viewport.height - _scrollbarGap * 4;
           if (extent <= 0 || track <= 0) {
