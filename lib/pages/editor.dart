@@ -6,12 +6,14 @@ import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/languages/javascript.dart';
 import 'package:re_highlight/languages/json.dart';
 import 'package:re_highlight/languages/yaml.dart';
+import 'package:re_highlight/re_highlight.dart';
 import 'package:re_highlight/styles/atom-one-light.dart';
 
 class EditorPage extends ConsumerStatefulWidget {
@@ -315,14 +317,11 @@ class _EditorMenuAction extends ConsumerWidget {
           },
           popupBuilder: (_) => CommonPopupMenu(
             items: [
-              // The preview no longer renders the editor's find panel, so the
-              // item is hidden there instead of offering a dead button.
-              if (!readOnly)
-                CommonPopupMenuItem(
-                  icon: Icons.search,
-                  label: appLocalizations.search,
-                  onPressed: onSearch,
-                ),
+              CommonPopupMenuItem(
+                icon: Icons.search,
+                label: appLocalizations.search,
+                onPressed: onSearch,
+              ),
               CommonPopupMenuItem(
                 icon: Icons.undo,
                 label: appLocalizations.undo,
@@ -391,6 +390,14 @@ class _EditorBody extends ConsumerWidget {
     );
   }
 
+  /// The highlighter registers everything the editor knows about and then picks
+  /// from this list, so it matches what the editor mode would colour.
+  List<String> get _previewLanguages => [
+    if (languages.contains(Language.yaml)) 'yaml',
+    if (languages.contains(Language.javaScript)) 'javascript',
+    if (languages.contains(Language.json)) 'json',
+  ];
+
   Widget _buildEditor(BuildContext context, bool isMobileView) {
     return CodeEditor(
       readOnly: readOnly,
@@ -437,7 +444,22 @@ class _EditorBody extends ConsumerWidget {
     return Stack(
       children: [
         if (readOnly)
-          _PreviewBody(text: content ?? '')
+          Column(
+            children: [
+              FindPanel(
+                controller: findController,
+                readOnly: readOnly,
+                isMobileView: isMobileView,
+              ),
+              Expanded(
+                child: _PreviewBody(
+                  text: content ?? '',
+                  languages: _previewLanguages,
+                  findController: findController,
+                ),
+              ),
+            ],
+          )
         else
           _buildEditor(context, isMobileView),
         FadeBox(
@@ -485,12 +507,18 @@ class _PanScrollbarThumb extends StatelessWidget {
 /// inner scrollables would drop their drag recognizers — which turned that
 /// viewport into the document itself, so every frame laid out and painted every
 /// line and any long profile froze the UI. Here the field stays at viewport
-/// size, panning moves the scroll position instead of the layout size, and only
-/// the visible lines are built.
+/// size, panning moves the scroll position instead of the layout size, only the
+/// visible lines are built, and highlighting runs off the UI isolate.
 class _PreviewBody extends StatefulWidget {
-  const _PreviewBody({required this.text});
+  const _PreviewBody({
+    required this.text,
+    required this.languages,
+    required this.findController,
+  });
 
   final String text;
+  final List<String> languages;
+  final CodeFindController findController;
 
   @override
   State<_PreviewBody> createState() => _PreviewBodyState();
@@ -513,6 +541,10 @@ class _PreviewBodyState extends State<_PreviewBody> {
   final ScrollController _verticalController = ScrollController();
   final ValueNotifier<double> _horizontalOffset = ValueNotifier<double>(0);
 
+  /// Highlight styles already merged into the current base style, keyed by the
+  /// highlighter's class name.
+  final Map<String, TextStyle> _classStyles = {};
+
   TextStyle? _style;
   String? _preparedText;
   List<String> _lines = const [];
@@ -520,11 +552,83 @@ class _PreviewBodyState extends State<_PreviewBody> {
   double _contentWidth = 0;
   double _gutterWidth = 0;
 
+  /// Per-line syntax ranges, produced off the UI isolate once per document.
+  List<List<_HighlightRange>>? _highlightRanges;
+  String? _highlightPendingText;
+
+  /// Search hits of the current query, as `[start, end, start, end, …]` per
+  /// line index.
+  Map<int, List<int>>? _matchRanges;
+  int? _currentMatchLine;
+  int? _currentMatchOffset;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.findController.addListener(_handleFindChanged);
+    _handleFindChanged();
+  }
+
+  @override
+  void didUpdateWidget(covariant _PreviewBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.findController != widget.findController) {
+      oldWidget.findController.removeListener(_handleFindChanged);
+      widget.findController.addListener(_handleFindChanged);
+      _handleFindChanged();
+    }
+  }
+
   @override
   void dispose() {
+    widget.findController.removeListener(_handleFindChanged);
     _verticalController.dispose();
     _horizontalOffset.dispose();
     super.dispose();
+  }
+
+  void _handleFindChanged() {
+    final List<CodeLineSelection>? matches =
+        widget.findController.allMatchSelections;
+    final CodeLineSelection? current =
+        widget.findController.currentMatchSelection;
+    final Map<int, List<int>> ranges = {};
+    if (matches != null) {
+      for (final CodeLineSelection match in matches) {
+        if (match.baseIndex != match.extentIndex) {
+          continue;
+        }
+        ranges.putIfAbsent(match.baseIndex, () => <int>[]).addAll([
+          match.baseOffset,
+          match.extentOffset,
+        ]);
+      }
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _matchRanges = ranges.isEmpty ? null : ranges;
+      _currentMatchLine = current?.baseIndex;
+      _currentMatchOffset = current?.baseOffset;
+    });
+    final int? line = current?.baseIndex;
+    if (line != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToLine(line));
+    }
+  }
+
+  void _scrollToLine(int line) {
+    if (!mounted || !_verticalController.hasClients) {
+      return;
+    }
+    final ScrollPosition position = _verticalController.position;
+    _verticalController.jumpTo(
+      (line * _lineHeight - position.viewportDimension / 2).clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      ),
+    );
   }
 
   static bool _isWideRune(int rune) {
@@ -555,6 +659,8 @@ class _PreviewBodyState extends State<_PreviewBody> {
     _style = style;
     _preparedText = widget.text;
     _lines = widget.text.split('\n').map(_displayLine).toList(growable: false);
+    _classStyles.clear();
+    _highlightRanges = null;
 
     final TextPainter unitPainter = TextPainter(
       textDirection: TextDirection.ltr,
@@ -577,6 +683,57 @@ class _PreviewBodyState extends State<_PreviewBody> {
       }
     }
     _contentWidth = _paddingLeft + _gutterWidth + widest * unit + _paddingRight;
+
+    _runHighlight();
+  }
+
+  /// Highlighting a whole document is far too much to do on the UI isolate, so
+  /// it runs on a worker and lands a frame or two later; until it does the
+  /// preview is plain text.
+  Future<void> _runHighlight() async {
+    final String text = widget.text;
+    if (widget.languages.isEmpty || _highlightPendingText == text) {
+      return;
+    }
+    _highlightPendingText = text;
+    final List<List<_HighlightRange>> ranges;
+    try {
+      ranges = await compute(
+        _highlightDocument,
+        _HighlightRequest(text, widget.languages),
+      );
+    } catch (_) {
+      _highlightPendingText = null;
+      return;
+    }
+    _highlightPendingText = null;
+    if (!mounted || _preparedText != text) {
+      return;
+    }
+    setState(() => _highlightRanges = ranges);
+  }
+
+  TextStyle _styleForClass(String className, TextStyle base) {
+    final TextStyle? cached = _classStyles[className];
+    if (cached != null) {
+      return cached;
+    }
+    String name = className;
+    TextStyle? highlight = atomOneLightTheme[name];
+    while (highlight == null) {
+      final int pieceIndex = name.indexOf('-');
+      if (pieceIndex < 0) {
+        break;
+      }
+      name = name.substring(pieceIndex + 1);
+      if (name.isEmpty) {
+        break;
+      }
+      highlight = atomOneLightTheme[name];
+    }
+    final TextStyle resolved = highlight == null ? base : base.merge(highlight);
+    _classStyles[className] = resolved;
+    return resolved;
   }
 
   void _handlePan(Offset delta, double maxHorizontal) {
@@ -589,7 +746,7 @@ class _PreviewBodyState extends State<_PreviewBody> {
     if (!_verticalController.hasClients) {
       return;
     }
-    final position = _verticalController.position;
+    final ScrollPosition position = _verticalController.position;
     _verticalController.jumpTo(
       (position.pixels - delta.dy).clamp(
         position.minScrollExtent,
@@ -598,7 +755,95 @@ class _PreviewBodyState extends State<_PreviewBody> {
     );
   }
 
+  /// Cuts a line into syntax- and search-styled runs. The two ranges overlap, so
+  /// the line is split at every boundary and each piece takes the style of the
+  /// run containing it.
+  List<InlineSpan> _buildSpans(
+    BuildContext context,
+    int lineIndex,
+    String text,
+    TextStyle base,
+  ) {
+    final List<_HighlightRange>? ranges = _highlightRanges?[lineIndex];
+    final List<int>? matches = _matchRanges?[lineIndex];
+    final bool hasRanges = ranges != null && ranges.isNotEmpty;
+    if (!hasRanges && matches == null) {
+      return [TextSpan(text: text, style: base)];
+    }
+    final int length = text.length;
+    final Set<int> boundaries = {0, length};
+    if (hasRanges) {
+      for (final _HighlightRange range in ranges) {
+        if (range.start >= length) {
+          continue;
+        }
+        boundaries.add(range.start.clamp(0, length));
+        boundaries.add(range.end.clamp(0, length));
+      }
+    }
+    if (matches != null) {
+      for (final int offset in matches) {
+        boundaries.add(offset.clamp(0, length));
+      }
+    }
+    final List<int> sorted = boundaries.toList()..sort();
+    final Color matchColor = context.colorScheme.primary.withValues(alpha: 0.2);
+    final Color currentMatchColor = context.colorScheme.primary.withValues(
+      alpha: 0.4,
+    );
+    final List<TextSpan> spans = [];
+    for (int i = 0; i + 1 < sorted.length; i++) {
+      final int start = sorted[i];
+      final int end = sorted[i + 1];
+      if (end <= start) {
+        continue;
+      }
+      TextStyle spanStyle = base;
+      if (hasRanges) {
+        for (final _HighlightRange range in ranges) {
+          if (range.start <= start && end <= range.end) {
+            final String? className = range.className;
+            if (className != null) {
+              spanStyle = _styleForClass(className, base);
+            }
+            break;
+          }
+        }
+      }
+      if (matches != null) {
+        for (int j = 0; j + 1 < matches.length; j += 2) {
+          if (matches[j] <= start && end <= matches[j + 1]) {
+            final bool isCurrent =
+                lineIndex == _currentMatchLine &&
+                matches[j] == _currentMatchOffset;
+            spanStyle = spanStyle.copyWith(
+              backgroundColor: isCurrent ? currentMatchColor : matchColor,
+            );
+            break;
+          }
+        }
+      }
+      final String piece = text.substring(start, end);
+      // Merging equal neighbours keeps the span count near the token count
+      // rather than the boundary count.
+      final TextSpan? previous = spans.isEmpty ? null : spans.last;
+      if (previous != null && previous.style == spanStyle) {
+        spans[spans.length - 1] = TextSpan(
+          text: '${previous.text}$piece',
+          style: spanStyle,
+        );
+      } else {
+        spans.add(TextSpan(text: piece, style: spanStyle));
+      }
+    }
+    if (spans.isEmpty) {
+      return [TextSpan(text: text, style: base)];
+    }
+    return spans;
+  }
+
   Widget _buildLine(BuildContext context, int index, TextStyle style) {
+    final String text = _lines[index];
     return Row(
       children: [
         SizedBox(
@@ -611,12 +856,12 @@ class _PreviewBodyState extends State<_PreviewBody> {
           ),
         ),
         Expanded(
-          child: Text(
-            _lines[index],
+          child: Text.rich(
+            TextSpan(children: _buildSpans(context, index, text, style)),
+            style: style,
             maxLines: 1,
             softWrap: false,
             overflow: TextOverflow.clip,
-            style: style,
           ),
         ),
       ],
@@ -1130,4 +1375,89 @@ class ContextMenuControllerImpl implements SelectionToolbarController {
     );
     Overlay.of(context).insert(_overlayEntry!);
   }
+}
+
+/// One syntax-highlighted range of a single line, in UTF-16 offsets.
+class _HighlightRange {
+  const _HighlightRange(this.start, this.end, this.className);
+
+  final int start;
+  final int end;
+  final String? className;
+}
+
+class _HighlightRequest {
+  const _HighlightRequest(this.code, this.languages);
+
+  final String code;
+  final List<String> languages;
+}
+
+/// Turns a whole document's highlight result into per-line token ranges.
+class _LineHighlightRenderer implements HighlightRenderer {
+  final List<List<_HighlightRange>> ranges = [[]];
+  final List<String?> _classNames = [];
+  int _offset = 0;
+
+  @override
+  void addText(String text) {
+    final String? className = _classNames.isEmpty ? null : _classNames.last;
+    final List<String> lines = text.split('\n');
+    final String first = lines.first;
+    if (first.isNotEmpty) {
+      ranges.last.add(
+        _HighlightRange(_offset, _offset + first.length, className),
+      );
+      _offset += first.length;
+    }
+    for (int i = 1; i < lines.length; i++) {
+      ranges.add([]);
+      _offset = 0;
+      final String line = lines[i];
+      if (line.isNotEmpty) {
+        ranges.last.add(_HighlightRange(0, line.length, className));
+        _offset = line.length;
+      }
+    }
+  }
+
+  @override
+  void openNode(DataNode node) {
+    final String? parent = _classNames.isEmpty ? null : _classNames.last;
+    final String? scope = node.scope;
+    final String? name;
+    if (parent == null || scope == null) {
+      name = scope;
+    } else {
+      name = '$parent-$scope';
+    }
+    _classNames.add(name?.split('.').first);
+  }
+
+  @override
+  void closeNode(DataNode node) {
+    if (_classNames.isNotEmpty) {
+      _classNames.removeLast();
+    }
+  }
+}
+
+/// Runs on a worker isolate. The languages are top-level, so the isolate
+/// initialises them itself rather than receiving a [Mode] graph.
+List<List<_HighlightRange>> _highlightDocument(_HighlightRequest request) {
+  final Highlight highlight = Highlight()
+    ..registerLanguages({
+      'yaml': langYaml,
+      'javascript': langJavascript,
+      'json': langJson,
+    });
+  final HighlightResult result = request.languages.length == 1
+      ? highlight.highlight(
+          code: request.code,
+          language: request.languages.first,
+        )
+      : highlight.highlightAuto(request.code, request.languages);
+  final _LineHighlightRenderer renderer = _LineHighlightRenderer();
+  result.render(renderer);
+  return renderer.ranges;
 }
