@@ -143,4 +143,40 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('opening search shows the find panel', (tester) async {
+    await pumpPreview(
+      tester,
+      const Profile(id: 7, label: 'home', autoUpdateDuration: Duration.zero),
+    );
+
+    final Finder panelControls = find.descendant(
+      of: find.byType(FindPanel),
+      matching: find.byType(IconButton),
+    );
+    expect(panelControls, findsNothing);
+
+    // This is exactly what the menu action does. The panel only shows up if the
+    // preview rebuilds when the controller changes -- it did not before, which
+    // is why tapping Search looked dead.
+    tester.widget<FindPanel>(find.byType(FindPanel)).controller.findMode();
+    await tester.pump();
+    await tester.pump();
+
+    expect(panelControls, findsWidgets);
+  });
+
+  testWidgets('a long document previews without throwing', (tester) async {
+    _StubSetupAction.yaml = List<String>.generate(
+      4000,
+      (index) => 'key$index: value$index',
+    ).join('\n');
+
+    await pumpPreview(
+      tester,
+      const Profile(id: 7, label: 'home', autoUpdateDuration: Duration.zero),
+    );
+
+    expect(tester.takeException(), isNull);
+  });
 }

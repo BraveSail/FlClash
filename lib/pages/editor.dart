@@ -1100,13 +1100,16 @@ class _PreviewBodyState extends State<_PreviewBody>
                           ? _contentWidth
                           : viewport.width,
                       height: viewport.height,
-                      child: IgnorePointer(
-                        // The pan owns every pointer on the preview, so the list
-                        // can keep its normal physics for the fling simulation
-                        // without ever claiming a drag.
+                      // Selectable so long-press (and drag, on desktop) can
+                      // copy text out of the preview.
+                      child: SelectionArea(
                         child: ListView.builder(
                           controller: _verticalController,
-                          physics: const NextClampingScrollPhysics(),
+                          // Never scrollable, so the list drops its drag
+                          // recognizer and the pan keeps every gesture. The
+                          // fling is simulated explicitly, so it does not need
+                          // the list's own physics.
+                          physics: const NeverScrollableScrollPhysics(),
                           itemExtent: _lineHeight,
                           padding: const EdgeInsets.only(
                             left: _paddingLeft,
