@@ -352,7 +352,7 @@ class _EditorMenuAction extends ConsumerWidget {
   }
 }
 
-class _EditorBody extends ConsumerWidget {
+class _EditorBody extends ConsumerStatefulWidget {
   const _EditorBody({
     required this.controller,
     required this.findController,
@@ -371,6 +371,167 @@ class _EditorBody extends ConsumerWidget {
   final List<Language> languages;
   final bool isLoading;
 
+  @override
+  ConsumerState<_EditorBody> createState() => _EditorBodyState();
+}
+
+class _EditorBodyState extends ConsumerState<_EditorBody> {
+  final CodeScrollController _scrollController = CodeScrollController();
+  final TransformationController _transformationController =
+      TransformationController();
+
+  /// Whole-document size, filled in on the first frame. Null while unknown.
+  Size? _contentSize;
+
+  bool get _panPreview => widget.readOnly;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_handleContent);
+  }
+
+  @override
+  void didUpdateWidget(covariant _EditorBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_handleContent);
+      widget.controller.addListener(_handleContent);
+      _contentSize = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleContent);
+    _transformationController.dispose();
+    _scrollController.verticalScroller.dispose();
+    _scrollController.horizontalScroller.dispose();
+    super.dispose();
+  }
+
+  void _handleContent() {
+    if (_panPreview && _contentSize != null) {
+      setState(() => _contentSize = null);
+    }
+  }
+
+  /// The editor lays the whole document out in a single pass, so the real
+  /// extent is known right after the first frame. Sizing the box to it gives
+  /// the preview its intrinsic size and leaves the inner scrollables with
+  /// nothing to scroll, which is what stops them from claiming the drags.
+  void _measureContent(Size viewport) {
+    if (_contentSize != null) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _contentSize != null) {
+        return;
+      }
+      final vertical = _scrollController.verticalScroller;
+      final horizontal = _scrollController.horizontalScroller;
+      if (!vertical.hasClients || !horizontal.hasClients) {
+        return;
+      }
+      final size = Size(
+        viewport.width + horizontal.position.maxScrollExtent,
+        viewport.height + vertical.position.maxScrollExtent,
+      );
+      if (!size.width.isFinite || !size.height.isFinite) {
+        return;
+      }
+      setState(() => _contentSize = size);
+    });
+  }
+
+  void _applyPan(double x, double y) {
+    final matrix = _transformationController.value.clone();
+    matrix.setTranslationRaw(x, y, 0);
+    _transformationController.value = matrix;
+  }
+
+  /// Pan indicators for the desktop, where there is no touch drag available.
+  /// They mirror the preview transform and can be dragged directly.
+  List<Widget> _buildPanScrollbars(Size viewport, Size content) {
+    const thickness = 8.0;
+    const minThumb = 48.0;
+    const gap = 2.0;
+    final storage = _transformationController.value.storage;
+    final offsetX = storage[12];
+    final offsetY = storage[13];
+    final overflowX = content.width - viewport.width;
+    final overflowY = content.height - viewport.height;
+    if (overflowX <= 0 && overflowY <= 0) {
+      return const [];
+    }
+    final bars = <Widget>[];
+    if (overflowX > 0) {
+      final track =
+          viewport.width - (overflowY > 0 ? thickness + gap : 0) - gap;
+      if (track > 0) {
+        final thumb = track * viewport.width / content.width;
+        final barWidth = track <= minThumb
+            ? track
+            : thumb.clamp(minThumb, track);
+        final travel = track - barWidth;
+        final fraction = travel > 0
+            ? (-offsetX / overflowX).clamp(0.0, 1.0)
+            : 0.0;
+        bars.add(
+          Positioned(
+            left: fraction * travel,
+            bottom: gap,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragUpdate: (details) {
+                if (travel <= 0) {
+                  return;
+                }
+                final next = (offsetX - details.delta.dx / travel * overflowX)
+                    .clamp(-overflowX, 0.0);
+                _applyPan(next, offsetY);
+              },
+              child: _PanScrollbarThumb(width: barWidth, height: thickness),
+            ),
+          ),
+        );
+      }
+    }
+    if (overflowY > 0) {
+      final track =
+          viewport.height - (overflowX > 0 ? thickness + gap : 0) - gap;
+      if (track > 0) {
+        final thumb = track * viewport.height / content.height;
+        final barHeight = track <= minThumb
+            ? track
+            : thumb.clamp(minThumb, track);
+        final travel = track - barHeight;
+        final fraction = travel > 0
+            ? (-offsetY / overflowY).clamp(0.0, 1.0)
+            : 0.0;
+        bars.add(
+          Positioned(
+            right: gap,
+            top: fraction * travel,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onVerticalDragUpdate: (details) {
+                if (travel <= 0) {
+                  return;
+                }
+                final next = (offsetY - details.delta.dy / travel * overflowY)
+                    .clamp(-overflowY, 0.0);
+                _applyPan(offsetX, next);
+              },
+              child: _PanScrollbarThumb(width: thickness, height: barHeight),
+            ),
+          ),
+        );
+      }
+    }
+    return bars;
+  }
+
   CodeHighlightTheme get _highlightTheme {
     return CodeHighlightTheme(
       languages: {
@@ -386,49 +547,86 @@ class _EditorBody extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final isMobileView = ref.watch(isMobileViewProvider);
-    return Stack(
-      children: [
-        CodeEditor(
-          readOnly: readOnly,
-          autofocus: false,
-          showCursorWhenReadOnly: false,
-          findController: findController,
-          findBuilder: (context, controller, readOnly) => FindPanel(
-            controller: controller,
-            readOnly: readOnly,
-            isMobileView: isMobileView,
-          ),
-          padding: const EdgeInsets.only(right: 16),
-          autocompleteSymbols: true,
-          focusNode: focusNode,
-          scrollbarBuilder: (context, child, details) {
-            return CommonScrollBar(
-              controller: details.controller,
-              child: child,
+    final codeEditor = CodeEditor(
+      readOnly: widget.readOnly,
+      autofocus: false,
+      showCursorWhenReadOnly: false,
+      findController: widget.findController,
+      findBuilder: (context, controller, readOnly) => FindPanel(
+        controller: controller,
+        readOnly: readOnly,
+        isMobileView: isMobileView,
+      ),
+      padding: const EdgeInsets.only(right: 16),
+      autocompleteSymbols: true,
+      focusNode: widget.focusNode,
+      scrollController: _scrollController,
+      scrollbarBuilder: (context, child, details) {
+        return CommonScrollBar(
+          controller: details.controller,
+          thumbVisibility: system.isDesktop,
+          child: child,
+        );
+      },
+      toolbarController: widget.toolbarController,
+      indicatorBuilder:
+          (context, editingController, chunkController, notifier) {
+            return _EditorGutter(
+              controller: editingController,
+              chunkController: chunkController,
+              notifier: notifier,
             );
           },
-          toolbarController: toolbarController,
-          indicatorBuilder:
-              (context, editingController, chunkController, notifier) {
-                return _EditorGutter(
-                  controller: editingController,
-                  chunkController: chunkController,
-                  notifier: notifier,
-                );
-              },
-          shortcutsActivatorsBuilder:
-              const DefaultCodeShortcutsActivatorsBuilder(),
-          controller: controller,
-          style: CodeEditorStyle(
-            fontSize: context.textTheme.bodyLarge?.fontSize?.ap,
-            fontFamily: FontFamily.jetBrainsMono.value,
-            codeTheme: _highlightTheme,
-          ),
-        ),
+      shortcutsActivatorsBuilder: const DefaultCodeShortcutsActivatorsBuilder(),
+      controller: widget.controller,
+      style: CodeEditorStyle(
+        fontSize: context.textTheme.bodyLarge?.fontSize?.ap,
+        fontFamily: FontFamily.jetBrainsMono.value,
+        codeTheme: _highlightTheme,
+      ),
+      // The preview pans freely in both axes, so lines keep their real width
+      // instead of being wrapped into the viewport.
+      wordWrap: !_panPreview,
+    );
+
+    final body = _panPreview
+        ? LayoutBuilder(
+            builder: (context, constraints) {
+              final viewport = constraints.biggest;
+              _measureContent(viewport);
+              final content = _contentSize ?? viewport;
+              return Stack(
+                children: [
+                  InteractiveViewer(
+                    constrained: false,
+                    panAxis: PanAxis.free,
+                    scaleEnabled: false,
+                    alignment: Alignment.topLeft,
+                    transformationController: _transformationController,
+                    child: SizedBox.fromSize(size: content, child: codeEditor),
+                  ),
+                  if (system.isDesktop)
+                    Positioned.fill(
+                      child: AnimatedBuilder(
+                        animation: _transformationController,
+                        builder: (context, _) => Stack(
+                          children: _buildPanScrollbars(viewport, content),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          )
+        : codeEditor;
+
+    return Stack(
+      children: [
+        body,
         FadeBox(
-          child: isLoading
+          child: widget.isLoading
               ? Container(
                   color: context.colorScheme.surface,
                   alignment: Alignment.center,
@@ -440,6 +638,26 @@ class _EditorBody extends ConsumerWidget {
               : const SizedBox.shrink(),
         ),
       ],
+    );
+  }
+}
+
+class _PanScrollbarThumb extends StatelessWidget {
+  const _PanScrollbarThumb({required this.width, required this.height});
+
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = (width < height ? width : height) / 2;
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: context.colorScheme.outlineVariant,
+        borderRadius: BorderRadius.circular(radius),
+      ),
     );
   }
 }
