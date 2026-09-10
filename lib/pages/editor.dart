@@ -380,40 +380,42 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
   final TransformationController _transformationController =
       TransformationController();
 
-  /// Whole-document size, filled in on the first frame. Null while unknown.
+  /// Whole-document size, filled in once the editor has laid out. Null while
+  /// unknown.
   Size? _contentSize;
+
+  /// Guards against queueing more than one measurement per frame.
+  bool _measureScheduled = false;
+
+  /// Hard stop for the measurement loop. If the extent never settles we give
+  /// up and fall back to the viewport size rather than spinning forever.
+  int _measureAttempts = 0;
+
+  /// Text the current [_contentSize] was measured from.
+  String? _measuredText;
 
   bool get _panPreview => widget.readOnly;
 
   @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_handleContent);
-  }
-
-  @override
   void didUpdateWidget(covariant _EditorBody oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.controller != widget.controller) {
-      oldWidget.controller.removeListener(_handleContent);
-      widget.controller.addListener(_handleContent);
+    // Re-measure only when the document really changed. This deliberately is
+    // NOT a controller listener: the editor writes back to the controller
+    // while it lays out a resized box, so a listener that cleared the
+    // measurement would loop forever and freeze the UI.
+    if (oldWidget.controller != widget.controller ||
+        _measuredText != widget.controller.text) {
       _contentSize = null;
+      _measureAttempts = 0;
     }
   }
 
   @override
   void dispose() {
-    widget.controller.removeListener(_handleContent);
     _transformationController.dispose();
     _scrollController.verticalScroller.dispose();
     _scrollController.horizontalScroller.dispose();
     super.dispose();
-  }
-
-  void _handleContent() {
-    if (_panPreview && _contentSize != null) {
-      setState(() => _contentSize = null);
-    }
   }
 
   /// The editor lays the whole document out in a single pass, so the real
@@ -421,10 +423,13 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
   /// the preview its intrinsic size and leaves the inner scrollables with
   /// nothing to scroll, which is what stops them from claiming the drags.
   void _measureContent(Size viewport) {
-    if (_contentSize != null) {
+    if (_contentSize != null || _measureScheduled || _measureAttempts >= 10) {
       return;
     }
+    _measureScheduled = true;
+    _measureAttempts++;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _measureScheduled = false;
       if (!mounted || _contentSize != null) {
         return;
       }
@@ -440,7 +445,10 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
       if (!size.width.isFinite || !size.height.isFinite) {
         return;
       }
-      setState(() => _contentSize = size);
+      setState(() {
+        _contentSize = size;
+        _measuredText = widget.controller.text;
+      });
     });
   }
 
@@ -597,26 +605,63 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
               final viewport = constraints.biggest;
               _measureContent(viewport);
               final content = _contentSize ?? viewport;
-              return Stack(
-                children: [
-                  InteractiveViewer(
-                    constrained: false,
-                    panAxis: PanAxis.free,
-                    scaleEnabled: false,
-                    alignment: Alignment.topLeft,
-                    transformationController: _transformationController,
-                    child: SizedBox.fromSize(size: content, child: codeEditor),
-                  ),
-                  if (system.isDesktop)
-                    Positioned.fill(
-                      child: AnimatedBuilder(
-                        animation: _transformationController,
-                        builder: (context, _) => Stack(
-                          children: _buildPanScrollbars(viewport, content),
+              final overflowX = (content.width - viewport.width).clamp(
+                0.0,
+                double.infinity,
+              );
+              final overflowY = (content.height - viewport.height).clamp(
+                0.0,
+                double.infinity,
+              );
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onPanUpdate: (details) {
+                  final storage = _transformationController.value.storage;
+                  _applyPan(
+                    (storage[12] + details.delta.dx).clamp(-overflowX, 0.0),
+                    (storage[13] + details.delta.dy).clamp(-overflowY, 0.0),
+                  );
+                },
+                child: ClipRect(
+                  child: Stack(
+                    children: [
+                      ValueListenableBuilder(
+                        valueListenable: _transformationController,
+                        // Rebuilding this subtree on every pan frame would lay
+                        // the whole document out again, so the editor widget is
+                        // passed through as the cached child.
+                        child: OverflowBox(
+                          alignment: Alignment.topLeft,
+                          minWidth: 0,
+                          maxWidth: double.infinity,
+                          minHeight: 0,
+                          maxHeight: double.infinity,
+                          child: SizedBox.fromSize(
+                            size: content,
+                            child: codeEditor,
+                          ),
                         ),
+                        builder: (context, matrix, child) =>
+                            Transform.translate(
+                              offset: Offset(
+                                matrix.storage[12],
+                                matrix.storage[13],
+                              ),
+                              child: child,
+                            ),
                       ),
-                    ),
-                ],
+                      if (system.isDesktop)
+                        Positioned.fill(
+                          child: AnimatedBuilder(
+                            animation: _transformationController,
+                            builder: (context, _) => Stack(
+                              children: _buildPanScrollbars(viewport, content),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               );
             },
           )
