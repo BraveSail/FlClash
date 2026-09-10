@@ -446,10 +446,13 @@ class _EditorBody extends ConsumerWidget {
         if (readOnly)
           Column(
             children: [
-              FindPanel(
-                controller: findController,
-                readOnly: readOnly,
-                isMobileView: isMobileView,
+              ValueListenableBuilder<CodeFindValue?>(
+                valueListenable: findController,
+                builder: (context, _, _) => FindPanel(
+                  controller: findController,
+                  readOnly: readOnly,
+                  isMobileView: isMobileView,
+                ),
               ),
               Expanded(
                 child: _PreviewBody(
@@ -524,7 +527,8 @@ class _PreviewBody extends StatefulWidget {
   State<_PreviewBody> createState() => _PreviewBodyState();
 }
 
-class _PreviewBodyState extends State<_PreviewBody> {
+class _PreviewBodyState extends State<_PreviewBody>
+    with TickerProviderStateMixin {
   /// A line is cut here before the text engine ever sees it: Skia's line layout
   /// crawls on very long lines (reqable/re-editor#14), and only visible lines
   /// are built anyway.
@@ -540,6 +544,12 @@ class _PreviewBodyState extends State<_PreviewBody> {
 
   final ScrollController _verticalController = ScrollController();
   final ValueNotifier<double> _horizontalOffset = ValueNotifier<double>(0);
+  late final AnimationController _verticalAnimator;
+  late final AnimationController _horizontalAnimator;
+
+  /// Horizontal overflow of the current layout, kept for the fling bounds.
+  double _maxHorizontal = 0;
+  double _horizontalViewport = 0;
 
   /// Highlight styles already merged into the current base style, keyed by the
   /// highlighter's class name.
@@ -565,6 +575,10 @@ class _PreviewBodyState extends State<_PreviewBody> {
   @override
   void initState() {
     super.initState();
+    _verticalAnimator = AnimationController.unbounded(vsync: this)
+      ..addListener(_handleVerticalAnimator);
+    _horizontalAnimator = AnimationController.unbounded(vsync: this)
+      ..addListener(_handleHorizontalAnimator);
     widget.findController.addListener(_handleFindChanged);
     _handleFindChanged();
   }
@@ -582,6 +596,8 @@ class _PreviewBodyState extends State<_PreviewBody> {
   @override
   void dispose() {
     widget.findController.removeListener(_handleFindChanged);
+    _verticalAnimator.dispose();
+    _horizontalAnimator.dispose();
     _verticalController.dispose();
     _horizontalOffset.dispose();
     super.dispose();
@@ -734,6 +750,74 @@ class _PreviewBodyState extends State<_PreviewBody> {
     final TextStyle resolved = highlight == null ? base : base.merge(highlight);
     _classStyles[className] = resolved;
     return resolved;
+  }
+
+  void _handleVerticalAnimator() {
+    if (!_verticalController.hasClients) {
+      _verticalAnimator.stop();
+      return;
+    }
+    final ScrollPosition position = _verticalController.position;
+    final double value = _verticalAnimator.value;
+    final double clamped = value.clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    _verticalController.jumpTo(clamped);
+    if (clamped != value) {
+      _verticalAnimator.stop();
+    }
+  }
+
+  void _handleHorizontalAnimator() {
+    final double value = _horizontalAnimator.value;
+    final double clamped = value.clamp(0.0, _maxHorizontal);
+    _horizontalOffset.value = clamped;
+    if (clamped != value) {
+      _horizontalAnimator.stop();
+    }
+  }
+
+  void _handlePanDown(DragDownDetails details) {
+    _verticalAnimator.stop();
+    _horizontalAnimator.stop();
+  }
+
+  /// Flings run through the same physics the rest of the app's lists use, so
+  /// the preview glides exactly like every other scrollable in FlClash.
+  void _handlePanEnd(DragEndDetails details) {
+    const ScrollPhysics physics = NextClampingScrollPhysics();
+    final Offset velocity = details.velocity.pixelsPerSecond;
+    if (_verticalController.hasClients) {
+      final ScrollPosition position = _verticalController.position;
+      final Simulation? simulation = physics.createBallisticSimulation(
+        position,
+        -velocity.dy,
+      );
+      if (simulation != null) {
+        _verticalAnimator
+          ..value = position.pixels
+          ..animateWith(simulation);
+      }
+    }
+    if (_maxHorizontal > 0) {
+      final Simulation? simulation = physics.createBallisticSimulation(
+        _HorizontalMetrics(
+          pixels: _horizontalOffset.value,
+          maxScrollExtent: _maxHorizontal,
+          viewportDimension: _horizontalViewport,
+          devicePixelRatio: _verticalController.hasClients
+              ? _verticalController.position.devicePixelRatio
+              : 1,
+        ),
+        -velocity.dx,
+      );
+      if (simulation != null) {
+        _horizontalAnimator
+          ..value = _horizontalOffset.value
+          ..animateWith(simulation);
+      }
+    }
   }
 
   void _handlePan(Offset delta, double maxHorizontal) {
@@ -984,9 +1068,13 @@ class _PreviewBodyState extends State<_PreviewBody> {
           0.0,
           double.infinity,
         );
+        _maxHorizontal = maxHorizontal;
+        _horizontalViewport = viewport.width;
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
+          onPanDown: _handlePanDown,
           onPanUpdate: (details) => _handlePan(details.delta, maxHorizontal),
+          onPanEnd: _handlePanEnd,
           child: ClipRect(
             child: Stack(
               children: [
@@ -1004,13 +1092,12 @@ class _PreviewBodyState extends State<_PreviewBody> {
                           : viewport.width,
                       height: viewport.height,
                       child: IgnorePointer(
-                        // The pan must own every pointer on the preview. A
-                        // never-scrollable list also drops its drag recognizer,
-                        // but ignoring pointers makes that independent of the
-                        // physics rules.
+                        // The pan owns every pointer on the preview, so the list
+                        // can keep its normal physics for the fling simulation
+                        // without ever claiming a drag.
                         child: ListView.builder(
                           controller: _verticalController,
-                          physics: const NeverScrollableScrollPhysics(),
+                          physics: const NextClampingScrollPhysics(),
                           itemExtent: _lineHeight,
                           padding: const EdgeInsets.only(
                             left: _paddingLeft,
@@ -1375,6 +1462,41 @@ class ContextMenuControllerImpl implements SelectionToolbarController {
     );
     Overlay.of(context).insert(_overlayEntry!);
   }
+}
+
+/// The horizontal axis is not a [Scrollable], so the fling physics needs its
+/// metrics presented the way one would.
+class _HorizontalMetrics extends ScrollMetrics {
+  _HorizontalMetrics({
+    required this.pixels,
+    required this.maxScrollExtent,
+    required this.viewportDimension,
+    required this.devicePixelRatio,
+  });
+
+  @override
+  final double pixels;
+  @override
+  final double maxScrollExtent;
+  @override
+  final double viewportDimension;
+  @override
+  final double devicePixelRatio;
+
+  @override
+  double get minScrollExtent => 0;
+
+  @override
+  bool get hasContentDimensions => true;
+
+  @override
+  bool get hasViewportDimension => true;
+
+  @override
+  bool get hasPixels => true;
+
+  @override
+  AxisDirection get axisDirection => AxisDirection.right;
 }
 
 /// One syntax-highlighted range of a single line, in UTF-16 offsets.
