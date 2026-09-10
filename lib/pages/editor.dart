@@ -549,7 +549,6 @@ class _PreviewBodyState extends State<_PreviewBody>
 
   /// Horizontal overflow of the current layout, kept for the fling bounds.
   double _maxHorizontal = 0;
-  double _horizontalViewport = 0;
 
   /// Highlight styles already merged into the current base style, keyed by the
   /// highlighter's class name.
@@ -800,23 +799,22 @@ class _PreviewBodyState extends State<_PreviewBody>
           ..animateWith(simulation);
       }
     }
-    if (_maxHorizontal > 0) {
-      final Simulation? simulation = physics.createBallisticSimulation(
-        _HorizontalMetrics(
-          pixels: _horizontalOffset.value,
-          maxScrollExtent: _maxHorizontal,
-          viewportDimension: _horizontalViewport,
-          devicePixelRatio: _verticalController.hasClients
-              ? _verticalController.position.devicePixelRatio
-              : 1,
-        ),
-        -velocity.dx,
-      );
-      if (simulation != null) {
-        _horizontalAnimator
-          ..value = _horizontalOffset.value
-          ..animateWith(simulation);
-      }
+    final double dx = -velocity.dx;
+    if (dx.abs() > 1 && _maxHorizontal > 0) {
+      // The horizontal axis is not a Scrollable, so the metrics a physics would
+      // ask for are reproduced from the current offset instead.
+      final double pixelRatio = _verticalController.hasClients
+          ? _verticalController.position.devicePixelRatio
+          : 1;
+      _horizontalAnimator
+        ..value = _horizontalOffset.value
+        ..animateWith(
+          ClampingScrollSimulation(
+            position: _horizontalOffset.value,
+            velocity: dx,
+            tolerance: Tolerance(velocity: 1 / pixelRatio, distance: 0.5),
+          ),
+        );
     }
   }
 
@@ -1069,7 +1067,6 @@ class _PreviewBodyState extends State<_PreviewBody>
           double.infinity,
         );
         _maxHorizontal = maxHorizontal;
-        _horizontalViewport = viewport.width;
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onPanDown: _handlePanDown,
@@ -1462,41 +1459,6 @@ class ContextMenuControllerImpl implements SelectionToolbarController {
     );
     Overlay.of(context).insert(_overlayEntry!);
   }
-}
-
-/// The horizontal axis is not a [Scrollable], so the fling physics needs its
-/// metrics presented the way one would.
-class _HorizontalMetrics extends ScrollMetrics {
-  _HorizontalMetrics({
-    required this.pixels,
-    required this.maxScrollExtent,
-    required this.viewportDimension,
-    required this.devicePixelRatio,
-  });
-
-  @override
-  final double pixels;
-  @override
-  final double maxScrollExtent;
-  @override
-  final double viewportDimension;
-  @override
-  final double devicePixelRatio;
-
-  @override
-  double get minScrollExtent => 0;
-
-  @override
-  bool get hasContentDimensions => true;
-
-  @override
-  bool get hasViewportDimension => true;
-
-  @override
-  bool get hasPixels => true;
-
-  @override
-  AxisDirection get axisDirection => AxisDirection.right;
 }
 
 /// One syntax-highlighted range of a single line, in UTF-16 offsets.
