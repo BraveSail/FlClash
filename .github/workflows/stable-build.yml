@@ -3,7 +3,7 @@ name: stable build
 on:
   push:
     branches:
-      - feat/provider-yaml-preview
+      - dev
   workflow_dispatch:
     inputs:
       android_arch:
