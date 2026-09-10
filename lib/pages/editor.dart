@@ -535,11 +535,11 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
   CodeHighlightTheme get _highlightTheme {
     return CodeHighlightTheme(
       languages: {
-        if (languages.contains(Language.yaml))
+        if (widget.languages.contains(Language.yaml))
           'yaml': CodeHighlightThemeMode(mode: langYaml),
-        if (languages.contains(Language.javaScript))
+        if (widget.languages.contains(Language.javaScript))
           'javascript': CodeHighlightThemeMode(mode: langJavascript),
-        if (languages.contains(Language.json))
+        if (widget.languages.contains(Language.json))
           'json': CodeHighlightThemeMode(mode: langJson),
       },
       theme: atomOneLightTheme,
