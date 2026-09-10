@@ -416,6 +416,14 @@ _PatchClashConfig _$PatchClashConfigFromJson(Map<String, dynamic> json) =>
             unknownValue: FindProcessMode.always,
           ) ??
           FindProcessMode.always,
+      interfaceNameMode:
+          $enumDecodeNullable(
+            _$InterfaceNameModeEnumMap,
+            json['interface-name-mode'],
+            unknownValue: InterfaceNameMode.clear,
+          ) ??
+          InterfaceNameMode.clear,
+      interfaceName: json['interface-name'] as String? ?? '',
       keepAliveInterval:
           (json['keep-alive-interval'] as num?)?.toInt() ??
           defaultKeepAliveInterval,
@@ -464,6 +472,9 @@ Map<String, dynamic> _$PatchClashConfigToJson(_PatchClashConfig instance) =>
       'log-level': _$LogLevelEnumMap[instance.logLevel]!,
       'ipv6': instance.ipv6,
       'find-process-mode': _$FindProcessModeEnumMap[instance.findProcessMode]!,
+      'interface-name-mode':
+          _$InterfaceNameModeEnumMap[instance.interfaceNameMode]!,
+      'interface-name': instance.interfaceName,
       'keep-alive-interval': instance.keepAliveInterval,
       'unified-delay': instance.unifiedDelay,
       'tcp-concurrent': instance.tcpConcurrent,
@@ -497,6 +508,12 @@ const _$LogLevelEnumMap = {
 const _$FindProcessModeEnumMap = {
   FindProcessMode.always: 'always',
   FindProcessMode.off: 'off',
+};
+
+const _$InterfaceNameModeEnumMap = {
+  InterfaceNameMode.clear: 'clear',
+  InterfaceNameMode.follow: 'follow',
+  InterfaceNameMode.custom: 'custom',
 };
 
 const _$GeodataLoaderEnumMap = {
