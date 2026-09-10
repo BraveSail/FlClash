@@ -597,6 +597,13 @@ class _EditorBodyState extends ConsumerState<_EditorBody> {
       // The preview pans freely in both axes, so lines keep their real width
       // instead of being wrapped into the viewport.
       wordWrap: !_panPreview,
+      // Wrapping used to hide this: a single very long line (base64 blobs,
+      // long URLs) makes Skia's text layout crawl, and with wrapping off the
+      // whole line is handed to it in one piece. Cap what gets laid out —
+      // reqable/re-editor#14 — otherwise previewing such a profile freezes
+      // the UI. Only the preview needs it; wrapped editing never sees long
+      // spans.
+      maxLengthSingleLineRendering: _panPreview ? 5000 : null,
     );
 
     final body = _panPreview
