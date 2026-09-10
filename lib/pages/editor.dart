@@ -7,6 +7,7 @@ import 'package:fl_clash/state.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart' show PointerScrollEvent, PointerSignalEvent;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:re_editor/re_editor.dart';
@@ -540,7 +541,7 @@ class _PreviewBodyState extends State<_PreviewBody>
   static const double _paddingVertical = 8;
   static const double _scrollbarThickness = 8;
   static const double _scrollbarGap = 2;
-  static const double _minThumb = 48;
+  static const double _minThumb = _scrollbarThickness * 2;
 
   final ScrollController _verticalController = ScrollController();
   final ValueNotifier<double> _horizontalOffset = ValueNotifier<double>(0);
@@ -689,18 +690,28 @@ class _PreviewBodyState extends State<_PreviewBody>
     unitPainter.dispose();
     _lineHeight = lineHeight > 0 ? lineHeight : 1;
 
+    // A full-width glyph is not exactly two half-width ones: CJK falls back to
+    // another font, so measure it instead of doubling `unit`. Over-estimating
+    // here inflates the horizontal extent and skews the scrollbar thumb.
+    final TextPainter widePainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      text: TextSpan(text: '中', style: style),
+    )..layout();
+    final double wideUnit = widePainter.width;
+    widePainter.dispose();
+
     _gutterWidth = '${_lines.length}'.length * unit + _gutterGap;
-    int widest = 0;
+    double widest = 0;
     for (final String line in _lines) {
-      int width = 0;
+      double width = 0;
       for (final int rune in line.runes) {
-        width += _isWideRune(rune) ? 2 : 1;
+        width += _isWideRune(rune) ? wideUnit : unit;
       }
       if (width > widest) {
         widest = width;
       }
     }
-    _contentWidth = _paddingLeft + _gutterWidth + widest * unit + _paddingRight;
+    _contentWidth = _paddingLeft + _gutterWidth + widest + _paddingRight;
 
     _runHighlight();
   }
@@ -849,6 +860,38 @@ class _PreviewBodyState extends State<_PreviewBody>
     );
   }
 
+  /// Wheels and trackpads report a scroll *signal*, not a drag, so the pan above
+  /// never sees them and the list's `NeverScrollableScrollPhysics` refuses to
+  /// turn them into scrolling either. A vertical wheel scrolls the list; a
+  /// horizontal wheel, or Shift plus a vertical one, pans sideways.
+  void _handlePointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) {
+      return;
+    }
+    final Offset delta = event.scrollDelta;
+    if (delta.dx.abs() > delta.dy.abs() ||
+        HardwareKeyboard.instance.isShiftPressed) {
+      final double amount = delta.dx != 0 ? delta.dx : delta.dy;
+      _horizontalAnimator.stop();
+      _horizontalOffset.value = (_horizontalOffset.value + amount).clamp(
+        0.0,
+        _maxHorizontal,
+      );
+      return;
+    }
+    final ScrollPosition? position = _verticalPosition;
+    if (position == null) {
+      return;
+    }
+    _verticalAnimator.stop();
+    _verticalController.jumpTo(
+      (position.pixels + delta.dy).clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      ),
+    );
+  }
+
   /// Cuts a line into syntax- and search-styled runs. The two ranges overlap, so
   /// the line is split at every boundary and each piece takes the style of the
   /// run containing it.
@@ -971,7 +1014,7 @@ class _PreviewBodyState extends State<_PreviewBody>
       return const SizedBox.shrink();
     }
     final double thumb = (track * viewport.width / _contentWidth).clamp(
-      _minThumb,
+      _minThumb.clamp(0.0, track),
       track,
     );
     final double travel = track - thumb;
@@ -1021,14 +1064,14 @@ class _PreviewBodyState extends State<_PreviewBody>
             return const SizedBox.shrink();
           }
           final double extent = position.maxScrollExtent;
-          final double track = viewport.height - _scrollbarGap * 4;
+          final double track = viewport.height - _scrollbarGap * 2;
           if (extent <= 0 || track <= 0) {
             return const SizedBox.shrink();
           }
           final double contentHeight = extent + position.viewportDimension;
           final double thumb =
               (track * position.viewportDimension / contentHeight).clamp(
-                _minThumb,
+                _minThumb.clamp(0.0, track),
                 track,
               );
           final double travel = track - thumb;
@@ -1084,55 +1127,59 @@ class _PreviewBodyState extends State<_PreviewBody>
           onPanDown: _handlePanDown,
           onPanUpdate: (details) => _handlePan(details.delta, maxHorizontal),
           onPanEnd: _handlePanEnd,
-          child: ClipRect(
-            child: Stack(
-              children: [
-                ValueListenableBuilder<double>(
-                  valueListenable: _horizontalOffset,
-                  child: OverflowBox(
-                    alignment: Alignment.topLeft,
-                    minWidth: 0,
-                    maxWidth: double.infinity,
-                    minHeight: 0,
-                    maxHeight: double.infinity,
-                    child: SizedBox(
-                      width: _contentWidth > viewport.width
-                          ? _contentWidth
-                          : viewport.width,
-                      height: viewport.height,
-                      // Selectable so long-press (and drag, on desktop) can
-                      // copy text out of the preview.
-                      child: SelectionArea(
-                        child: ListView.builder(
-                          controller: _verticalController,
-                          // Never scrollable, so the list drops its drag
-                          // recognizer and the pan keeps every gesture. The
-                          // fling is simulated explicitly, so it does not need
-                          // the list's own physics.
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemExtent: _lineHeight,
-                          padding: const EdgeInsets.only(
-                            left: _paddingLeft,
-                            top: _paddingVertical,
-                            bottom: _paddingVertical,
+          child: Listener(
+            // Opaque so the wheel is caught over blank space too, not only over
+            // a line of text.
+            behavior: HitTestBehavior.opaque,
+            onPointerSignal: _handlePointerSignal,
+            child: ClipRect(
+              child: Stack(
+                children: [
+                  ValueListenableBuilder<double>(
+                    valueListenable: _horizontalOffset,
+                    child: OverflowBox(
+                      alignment: Alignment.topLeft,
+                      minWidth: 0,
+                      maxWidth: double.infinity,
+                      minHeight: 0,
+                      maxHeight: double.infinity,
+                      child: SizedBox(
+                        width: _contentWidth > viewport.width
+                            ? _contentWidth
+                            : viewport.width,
+                        height: viewport.height,
+                        // Selectable so long-press (and drag, on desktop) can
+                        // copy text out of the preview.
+                        child: SelectionArea(
+                          child: ListView.builder(
+                            controller: _verticalController,
+                            // Never scrollable, so the list drops its drag
+                            // recognizer and the pan keeps every gesture.
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemExtent: _lineHeight,
+                            padding: const EdgeInsets.only(
+                              left: _paddingLeft,
+                              top: _paddingVertical,
+                              bottom: _paddingVertical,
+                            ),
+                            itemCount: _lines.length,
+                            itemBuilder: (context, index) =>
+                                _buildLine(context, index, style),
                           ),
-                          itemCount: _lines.length,
-                          itemBuilder: (context, index) =>
-                              _buildLine(context, index, style),
                         ),
                       ),
                     ),
+                    builder: (context, offset, child) => Transform.translate(
+                      offset: Offset(-offset, 0),
+                      child: child,
+                    ),
                   ),
-                  builder: (context, offset, child) => Transform.translate(
-                    offset: Offset(-offset, 0),
-                    child: child,
-                  ),
-                ),
-                if (system.isDesktop) ...[
-                  _buildHorizontalScrollbar(viewport, maxHorizontal),
-                  _buildVerticalScrollbar(viewport),
+                  if (system.isDesktop) ...[
+                    _buildHorizontalScrollbar(viewport, maxHorizontal),
+                    _buildVerticalScrollbar(viewport),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         );

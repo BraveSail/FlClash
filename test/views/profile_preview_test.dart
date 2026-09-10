@@ -4,6 +4,7 @@ import 'package:fl_clash/pages/editor.dart';
 import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/views/profiles/preview.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -178,5 +179,38 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a wheel scrolls the preview', (tester) async {
+    _StubSetupAction.yaml = List<String>.generate(
+      4000,
+      (index) => 'key$index: value$index',
+    ).join('\n');
+
+    await pumpPreview(
+      tester,
+      const Profile(id: 7, label: 'home', autoUpdateDuration: Duration.zero),
+    );
+    // The loading overlay fades out over the preview and still swallows pointer
+    // signals while it is on screen, so let the switcher finish first.
+    await tester.pump(const Duration(milliseconds: 600));
+
+    final Finder list = find.descendant(
+      of: find.byType(EditorPage),
+      matching: find.byType(ListView),
+    );
+    final ScrollableState scrollable = tester.state(
+      find.descendant(of: list, matching: find.byType(Scrollable)),
+    );
+    expect(scrollable.position.maxScrollExtent, greaterThan(0));
+
+    // Desktop wheels arrive as pointer signals, never as drags, and the list
+    // refuses device scrolling -- so the preview has to translate them itself.
+    final TestPointer pointer = TestPointer(1, PointerDeviceKind.mouse);
+    pointer.hover(tester.getCenter(list));
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, 200)));
+    await tester.pump();
+
+    expect(scrollable.position.pixels, greaterThan(0));
   });
 }
