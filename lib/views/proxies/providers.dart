@@ -210,7 +210,7 @@ class ProviderItem extends ConsumerWidget {
       if (!context.mounted) return;
 
       final previewPage = EditorPage(title: provider.name, content: content);
-      BaseNavigator.push<String>(context, previewPage);
+      unawaited(BaseNavigator.push<String>(context, previewPage));
     }, silence: false);
   }
 
