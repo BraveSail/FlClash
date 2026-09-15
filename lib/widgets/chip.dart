@@ -64,13 +64,19 @@ class CommonChip extends StatelessWidget {
 class MetaChip extends StatelessWidget {
   final String label;
   final int maxLines;
+  final VoidCallback? onPressed;
 
-  const MetaChip({super.key, required this.label, this.maxLines = 1});
+  const MetaChip({
+    super.key,
+    required this.label,
+    this.maxLines = 1,
+    this.onPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = context.colorScheme;
-    return DecoratedBox(
+    final decorated = DecoratedBox(
       decoration: ShapeDecoration(
         color: colorScheme.surfaceContainerHighest,
         shape: AppShape.sm.copyWith(
@@ -89,5 +95,9 @@ class MetaChip extends StatelessWidget {
         ),
       ),
     );
+    if (onPressed == null) {
+      return decorated;
+    }
+    return GestureDetector(onTap: onPressed, child: decorated);
   }
 }

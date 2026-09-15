@@ -2,6 +2,7 @@ import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/features/features.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/test_app.dart';
@@ -176,6 +177,54 @@ void main() {
     );
     expect(tester.widget<Text>(find.text(transport)).maxLines, 3);
     expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('TrackerInfoDetailView copies a chain on tap', (tester) async {
+    final calls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        calls.add(call);
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    const transport = 'direct 2404:c140:1f00:32::1b:1fbf:41641';
+    await tester.pumpWidget(
+      TestApp(
+        homeBuilder: (child) => Scaffold(body: child),
+        child: SheetProvider(
+          type: SheetType.page,
+          child: TrackerInfoDetailView(
+            trackerInfo: _tracker(chains: const [transport]),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.scrollUntilVisible(
+      find.text(transport),
+      100,
+      scrollable: find.byType(Scrollable),
+    );
+    await tester.tap(find.text(transport));
+    await tester.pump();
+    await tester.pump();
+
+    final sets = calls
+        .where((call) => call.method == 'Clipboard.setData')
+        .toList();
+    expect(sets, isNotEmpty);
+    expect((sets.last.arguments as Map)['text'], transport);
 
     await tester.pumpWidget(const SizedBox.shrink());
   });

@@ -149,6 +149,12 @@ class TrackerInfoDetailView extends StatelessWidget {
     return ip;
   }
 
+  Future<void> _copy(BuildContext context, String value) async {
+    await Clipboard.setData(ClipboardData(text: value));
+    if (!context.mounted) return;
+    context.showNotifier(context.appLocalizations.copySuccess);
+  }
+
   Widget _buildChains(BuildContext context) {
     return DecorationListItem(
       title: Row(
@@ -164,7 +170,11 @@ class TrackerInfoDetailView extends StatelessWidget {
               alignment: WrapAlignment.end,
               children: [
                 for (final chain in trackerInfo.chains)
-                  MetaChip(label: chain, maxLines: 3),
+                  MetaChip(
+                    label: chain,
+                    maxLines: 3,
+                    onPressed: () => _copy(context, chain),
+                  ),
               ],
             ),
           ),
