@@ -50,6 +50,9 @@ class TrackerInfoItem extends ConsumerWidget {
                 for (final chain in chains)
                   CommonChip(
                     label: chain,
+                    // Tailscale transports carry full "direct <ipv6>:port"
+                    // endpoints, which a single line would ellipsize away.
+                    maxLines: 3,
                     onPressed: () => onClickKeyword?.call(chain),
                   ),
               ],
@@ -103,7 +106,7 @@ class TrackerInfoItem extends ConsumerWidget {
       leading: icon,
       title: Text(
         trackerInfo.desc,
-        maxLines: 1,
+        maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: context.textTheme.bodyLarge,
       ),
@@ -160,7 +163,8 @@ class TrackerInfoDetailView extends StatelessWidget {
               runSpacing: 4,
               alignment: WrapAlignment.end,
               children: [
-                for (final chain in trackerInfo.chains) MetaChip(label: chain),
+                for (final chain in trackerInfo.chains)
+                  MetaChip(label: chain, maxLines: 3),
               ],
             ),
           ),

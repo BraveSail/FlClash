@@ -5,12 +5,14 @@ class CommonChip extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
   final VoidCallback? onDeleted;
+  final int maxLines;
 
   const CommonChip({
     super.key,
     required this.label,
     this.onPressed,
     this.onDeleted,
+    this.maxLines = 1,
   });
 
   @override
@@ -31,7 +33,7 @@ class CommonChip extends StatelessWidget {
           Flexible(
             child: Text(
               label,
-              maxLines: 1,
+              maxLines: maxLines,
               overflow: TextOverflow.ellipsis,
               style: context.textTheme.labelMedium?.copyWith(
                 color: foregroundColor,
@@ -61,8 +63,9 @@ class CommonChip extends StatelessWidget {
 
 class MetaChip extends StatelessWidget {
   final String label;
+  final int maxLines;
 
-  const MetaChip({super.key, required this.label});
+  const MetaChip({super.key, required this.label, this.maxLines = 1});
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +81,7 @@ class MetaChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         child: Text(
           label,
-          maxLines: 1,
+          maxLines: maxLines,
           overflow: TextOverflow.ellipsis,
           style: context.textTheme.labelSmall?.copyWith(
             color: colorScheme.onSurfaceVariant,

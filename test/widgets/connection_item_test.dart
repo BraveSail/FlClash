@@ -129,4 +129,54 @@ void main() {
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets('TrackerInfoItem lets long tailscale transports wrap', (
+    tester,
+  ) async {
+    const transport = 'direct 2404:c140:1f00:32::1b:1fbf:41641';
+    await tester.pumpWidget(
+      TestApp(
+        wrapInProviderScope: true,
+        homeBuilder: (child) => Scaffold(body: child),
+        child: TrackerInfoItem(
+          trackerInfo: _tracker(chains: const ['Tailscale', transport]),
+          detailTitle: 'detail',
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.widget<Text>(find.text(transport)).maxLines, 3);
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('TrackerInfoDetailView lets long tailscale transports wrap', (
+    tester,
+  ) async {
+    const transport = 'direct 2404:c140:1f00:32::1b:1fbf:41641';
+    await tester.pumpWidget(
+      TestApp(
+        homeBuilder: (child) => Scaffold(body: child),
+        child: SheetProvider(
+          type: SheetType.page,
+          child: TrackerInfoDetailView(
+            trackerInfo: _tracker(chains: const [transport]),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.scrollUntilVisible(
+      find.text(transport),
+      100,
+      scrollable: find.byType(Scrollable),
+    );
+    expect(tester.widget<Text>(find.text(transport)).maxLines, 3);
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }
