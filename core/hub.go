@@ -21,6 +21,7 @@ import (
 	"github.com/metacubex/mihomo/common/observable"
 	"github.com/metacubex/mihomo/common/utils"
 	"github.com/metacubex/mihomo/component/resolver"
+	"github.com/metacubex/mihomo/component/tailnet"
 	"github.com/metacubex/mihomo/component/updater"
 	"github.com/metacubex/mihomo/config"
 	"github.com/metacubex/mihomo/constant"
@@ -305,6 +306,29 @@ func handleTestDelay(params *TestDelayParams) *Delay {
 
 func handleGetConnections() *statistic.Snapshot {
 	return statistic.DefaultManager.Snapshot()
+}
+
+// handleGetTailscaleStatus reports every tailscale outbound's netmap view: per-peer
+// online state, the current direct path (CurAddr) or the DERP relay in use, and
+// traffic counters. The connections page folds these into its list so tailnet peers
+// show up next to regular connections with their transport visible.
+func handleGetTailscaleStatus() []tailnet.Status {
+	statuses := make([]tailnet.Status, 0, 1)
+	for _, p := range tunnel.AllProxies() {
+		statusProvider, ok := p.Adapter().(tailnet.StatusProvider)
+		if !ok {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		status, err := statusProvider.TailnetStatus(ctx)
+		cancel()
+		if err != nil {
+			log.Warnln("[Tailscale] status for %s: %v", p.Name(), err)
+			continue
+		}
+		statuses = append(statuses, status)
+	}
+	return statuses
 }
 
 func handleCloseConnections() bool {
