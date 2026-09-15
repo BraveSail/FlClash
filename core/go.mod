@@ -4,6 +4,10 @@ go 1.21
 
 replace github.com/metacubex/mihomo => ./Clash.Meta
 
+// BraveSail/tailscale fork: real Windows winipcfg + Android-safe link monitor wakeups.
+// replace does NOT propagate from ./Clash.Meta, so this module needs its own line.
+replace github.com/metacubex/tailscale => github.com/BraveSail/tailscale v0.0.0-20260915113509-25e301102350
+
 require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/metacubex/mihomo v0.0.0-00010101000000-000000000000
