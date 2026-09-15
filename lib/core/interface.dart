@@ -263,13 +263,41 @@ abstract class CoreHandlerInterface with CoreInterface {
       method: CoreMethod.getConnections,
     );
     final connections = data?['connections'];
-    if (connections is! List) {
-      return [];
+    final trackerInfos = connections is! List
+        ? <TrackerInfo>[]
+        : connections
+            .whereType<Map>()
+            .map((item) => TrackerInfo.fromJson(Map<String, Object?>.from(item)))
+            .toList();
+    trackerInfos.addAll(await _tailscaleTrackerInfos());
+    return trackerInfos;
+  }
+
+  /// Folds tailscale peers into the connection list (ids prefixed `tailscale:`)
+  /// so tailnet nodes appear with their transport — the direct address or the
+  /// DERP relay in use — right next to regular connections. Never throws: an
+  /// absent or failing tailscale core just means no extra rows.
+  Future<List<TrackerInfo>> _tailscaleTrackerInfos() async {
+    final List<dynamic>? statuses;
+    try {
+      statuses = await _invokeMethod<List<dynamic>>(
+        method: CoreMethod.getTailscaleStatus,
+      );
+    } catch (_) {
+      return const [];
     }
-    return connections
-        .whereType<Map>()
-        .map((item) => TrackerInfo.fromJson(Map<String, Object?>.from(item)))
-        .toList();
+    if (statuses == null) {
+      return const [];
+    }
+    final now = DateTime.now();
+    return [
+      for (final status in statuses)
+        if (status is Map)
+          ...tailscalePeersToTrackerInfos(
+            Map<String, Object?>.from(status),
+            now,
+          ),
+    ];
   }
 
   @override
@@ -360,4 +388,66 @@ abstract class CoreHandlerInterface with CoreInterface {
   Future<int> getMemory() async {
     return await _invokeMethod<int>(method: CoreMethod.getMemory) ?? 0;
   }
+}
+
+
+/// Maps one tailscale status payload (see the core's `getTailscaleStatus`
+/// method) into tracker rows, one per peer, for the connections list. Ids are
+/// prefixed `tailscale:` so close/block actions never match a mihomo connection.
+List<TrackerInfo> tailscalePeersToTrackerInfos(
+  Map<String, Object?> status,
+  DateTime now,
+) {
+  final proxy = status['proxy'] as String? ?? 'Tailscale';
+  final peers = status['peers'];
+  if (peers is! List) {
+    return const [];
+  }
+  final result = <TrackerInfo>[];
+  for (final raw in peers) {
+    if (raw is! Map) continue;
+    final peer = Map<String, Object?>.from(raw);
+    final name =
+        ((peer['name'] ?? peer['hostName']) as String? ?? '').replaceFirst(
+          RegExp(r'\.$'),
+          '',
+        );
+    final ips =
+        (peer['tailscaleIPs'] as List?)
+            ?.whereType<String>()
+            .toList(growable: false) ??
+        const <String>[];
+    final ip = ips.isEmpty ? '' : ips.first;
+    if (name.isEmpty && ip.isEmpty) {
+      continue;
+    }
+    final online = peer['online'] == true;
+    final active = peer['active'] == true;
+    final curAddr = peer['curAddr'] as String? ?? '';
+    final relay = peer['relay'] as String? ?? '';
+    final transport = !online
+        ? 'offline'
+        : curAddr.isNotEmpty
+        ? 'direct $curAddr'
+        : relay.isNotEmpty
+        ? 'derp via $relay'
+        : 'online';
+    result.add(
+      TrackerInfo(
+        id: 'tailscale:$proxy:$ip',
+        upload: (peer['txBytes'] as num?)?.toInt() ?? 0,
+        download: (peer['rxBytes'] as num?)?.toInt() ?? 0,
+        start: now,
+        metadata: Metadata(
+          network: 'tailscale',
+          host: name,
+          destinationIP: ip,
+        ),
+        chains: [proxy, transport, if (online && !active) 'idle'],
+        rule: 'Tailscale',
+        rulePayload: '',
+      ),
+    );
+  }
+  return result;
 }
