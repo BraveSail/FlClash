@@ -174,9 +174,10 @@ rules:
 	send("1", initClashMethod, InitParams{HomeDir: home, Version: 1})
 	send("2", setupConfigMethod, defaultSetupParams())
 	time.Sleep(time.Second)
-	send("3", startLogMethod, nil)
-	send("4", forceGcMethod, nil)
-	send("5", asyncTestDelayMethod, TestDelayParams{
+	send("3", startListenerMethod, nil)
+	send("4", startLogMethod, nil)
+	send("5", forceGcMethod, nil)
+	send("6", asyncTestDelayMethod, TestDelayParams{
 		ProxyName: "TS",
 		TestUrl:   "https://www.gstatic.com/generate_204",
 		Timeout:   5000,

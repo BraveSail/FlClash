@@ -159,6 +159,7 @@ func updateListeners(cfg *config.Config) {
 	if !features.Android {
 		listener.ReCreateTun(general.Tun, tunnel.Tunnel)
 	}
+	ensureTailscaleInboundRule(cfg)
 }
 
 func patchSelectGroup(mapping map[string]string) {
