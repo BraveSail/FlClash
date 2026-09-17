@@ -91,3 +91,27 @@ What it buys: IPv4 ICMP from a node whose carrier only gives IPv6, a reachabilit
 peer's network instead of the phone's, and a real RTT for both. What it does not buy: a way to
 exit through a node that is not running the responder (a plain VLESS node to a VPS has nobody to
 answer), and it still covers echo only.
+
+## Can one side alone be enough?
+
+ICMP has to leave from the exit's network, so *something* at the exit must emit it. What can vary
+is how much of that "something" has to be custom code, and the answer depends on what the exit is:
+
+- **The exit runs FlClash (this deployment).** Then no extra deployment exists to avoid: the
+  responder is one more inbound type in the same binary, shipped by the same update the peers
+  already take. One codebase, no second service, and the peer's configuration needs nothing at
+  all - that is as close to "one side" as a real ICMP can get.
+- **The exit is a plain VLESS/SS node on a VPS.** There is nothing there to emit ICMP, and VLESS
+  has no ICMP semantics to extend, so no client-side trick can help. Two ways out:
+  - run the same FlClash (or just a responder) there - a second deployment, however small;
+  - or use a protocol whose *server* already speaks layer 3, and implement only the client half
+    here. `masque` (HTTP/3) and `zerotier` already contain the packet path in this tree
+    (`ipConn.WritePacket`, `ipLink.WritePacket`) but are UDP-based, which these networks block;
+    `openvpn` runs over **TCP** and is the remaining candidate, except that its outbound only
+    implements TCP and UDP today - the ICMP half would be ours to write (~80 lines) on top of the
+    TUN wiring (~150 lines), and the exit would be a stock OpenVPN server.
+- **No code at all**: `ssh exit 'ping ...'`, or a public reachability API. Real ICMP, but not a
+  local `ping`, and the round trip it reports belongs to the exit's network, not to this path.
+
+So: with FlClash on both ends, the responder is the "one side" answer. With a stock VPS exit, the
+choice is OpenVPN-over-TCP (client work, stock server) or accepting a second deployment.
