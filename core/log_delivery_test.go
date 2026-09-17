@@ -203,6 +203,13 @@ rules:
 		TestUrl:   "https://www.gstatic.com/generate_204",
 		Timeout:   5000,
 	})
+	// A network change the platform observed should reach the directory at once,
+	// which is what the app's connectivity callback asks for.
+	if os.Getenv("FLCLASH_HARNESS_INJECT") != "" {
+		time.Sleep(5 * time.Second)
+		fmt.Println("[harness] injecting a network change")
+		send("7", injectNetworkChangeMethod, nil)
+	}
 
 	stop := time.After(time.Duration(envInt("FLCLASH_HARNESS_SECONDS", 12)) * time.Second)
 	seen, related := 0, 0
