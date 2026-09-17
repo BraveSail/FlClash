@@ -6,7 +6,13 @@ void main() {
     final rawConfig = <String, dynamic>{
       'proxies': [
         {'name': 'peer-directory', 'type': 'peer-directory', 'id': 'shared'},
-        {'name': 'pc', 'type': 'tailnet-peer', 'peer': 'pc'},
+        {
+          'name': 'pc',
+          'type': 'tailnet-peer',
+          'peer': 'pc',
+          'directory-url': 'https://directory.example',
+        },
+        {'name': 'plain', 'type': 'tailnet-peer', 'peer': 'plain'},
         'not a proxy',
       ],
     };
@@ -15,7 +21,9 @@ void main() {
 
     final proxies = rawConfig['proxies'] as List;
     expect((proxies[0] as Map)['id'], 'gt7');
+    expect((proxies[1] as Map)['directory-id'], 'gt7');
     expect((proxies[1] as Map).containsKey('id'), isFalse);
+    expect((proxies[2] as Map).containsKey('directory-id'), isFalse);
   });
 
   test('applyDirectoryId leaves the profile alone without a name', () {
