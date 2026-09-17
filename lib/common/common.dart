@@ -30,6 +30,7 @@ export 'navigator.dart';
 export 'network.dart';
 export 'num.dart';
 export 'package.dart';
+export 'p2p_follower.dart';
 export 'path.dart';
 export 'picker.dart';
 export 'preferences.dart';
