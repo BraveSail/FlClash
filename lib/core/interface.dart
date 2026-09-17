@@ -74,6 +74,12 @@ mixin CoreInterface {
 
   FutureOr<bool> closeConnections();
 
+  /// Reports a network change the platform observed (an interface switch, a
+  /// reconnected VPN, a connectivity callback) so the core's tailscale
+  /// outbounds recompute their endpoints immediately instead of waiting for
+  /// their next periodic pass.
+  FutureOr<void> injectNetworkChange();
+
   FutureOr<bool> resetConnections();
 }
 
@@ -306,6 +312,11 @@ abstract class CoreHandlerInterface with CoreInterface {
   Future<bool> closeConnections() async {
     return await _invokeMethod<bool>(method: CoreMethod.closeConnections) ??
         false;
+  }
+
+  @override
+  Future<void> injectNetworkChange() async {
+    await _invokeMethod<bool>(method: CoreMethod.injectNetworkChange);
   }
 
   @override

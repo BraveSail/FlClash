@@ -9,6 +9,19 @@ class SystemAction extends _$SystemAction {
   @override
   void build() {}
 
+  /// Hands a platform connectivity change to the core so its tailscale
+  /// outbounds refresh their endpoints at once instead of on their next pass.
+  Future<void> injectNetworkChange() async {
+    try {
+      await _core.injectNetworkChange();
+    } catch (error) {
+      commonPrint.log(
+        'Unable to inject the network change: $error',
+        logLevel: LogLevel.warning,
+      );
+    }
+  }
+
   Future<List<Package>> getPackages() async {
     if (ref.read(isMobileViewProvider)) {
       await Future.delayed(commonDuration);

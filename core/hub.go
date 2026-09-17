@@ -334,6 +334,15 @@ func handleGetTailscaleStatus() []tailnet.Status {
 	return statuses
 }
 
+// handleInjectNetworkChange forwards a network change the app observed - a
+// connectivity callback, an interface switch, a re-established VPN - so the
+// tailscale outbounds recompute their endpoints now instead of on their next
+// periodic pass.
+func handleInjectNetworkChange() bool {
+	tailnet.InjectNetworkChange()
+	return true
+}
+
 func handleCloseConnections() bool {
 	statistic.DefaultManager.Range(func(c statistic.Tracker) bool {
 		_ = c.Close()

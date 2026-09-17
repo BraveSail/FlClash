@@ -215,6 +215,9 @@ var methodHandlers = map[CoreMethod]methodHandler{
 	getTailscaleStatusMethod: withoutArguments(func(response MethodResponse) {
 		response.success(handleGetTailscaleStatus())
 	}),
+	injectNetworkChangeMethod: withoutArguments(func(response MethodResponse) {
+		response.success(handleInjectNetworkChange())
+	}),
 	closeConnectionsMethod: withoutArguments(func(response MethodResponse) {
 		response.success(handleCloseConnections())
 	}),

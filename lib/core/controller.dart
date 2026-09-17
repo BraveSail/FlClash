@@ -156,6 +156,10 @@ class CoreController {
     await _interface.closeConnections();
   }
 
+  Future<void> injectNetworkChange() async {
+    await _interface.injectNetworkChange();
+  }
+
   Future<void> resetConnections() async {
     await _interface.resetConnections();
   }
