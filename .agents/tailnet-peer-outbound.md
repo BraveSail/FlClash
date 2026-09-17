@@ -61,6 +61,10 @@ this order:
    with a local interface (same LAN) before global ones;
 3. the remaining `addrs`.
 
+`addrs` are the endpoints the peer published, read through the local client's node lookup: the
+status itself reports endpoints for this node only, so without that lookup every peer row is empty
+until a direct path already exists.
+
 The address is re-resolved for each new connection (with a short cache so a burst of connections
 does not re-read the status), so a peer that changed networks is reached by the next connection
 attempt.
