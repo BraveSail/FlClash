@@ -266,9 +266,11 @@ abstract class CoreHandlerInterface with CoreInterface {
     final trackerInfos = connections is! List
         ? <TrackerInfo>[]
         : connections
-            .whereType<Map>()
-            .map((item) => TrackerInfo.fromJson(Map<String, Object?>.from(item)))
-            .toList();
+              .whereType<Map>()
+              .map(
+                (item) => TrackerInfo.fromJson(Map<String, Object?>.from(item)),
+              )
+              .toList();
     trackerInfos.addAll(await _tailscaleTrackerInfos());
     return trackerInfos;
   }
@@ -390,7 +392,6 @@ abstract class CoreHandlerInterface with CoreInterface {
   }
 }
 
-
 /// Maps one tailscale status payload (see the core's `getTailscaleStatus`
 /// method) into tracker rows, one per peer, for the connections list. Ids are
 /// prefixed `tailscale:` so close/block actions never match a mihomo connection.
@@ -407,15 +408,12 @@ List<TrackerInfo> tailscalePeersToTrackerInfos(
   for (final raw in peers) {
     if (raw is! Map) continue;
     final peer = Map<String, Object?>.from(raw);
-    final name =
-        ((peer['name'] ?? peer['hostName']) as String? ?? '').replaceFirst(
-          RegExp(r'\.$'),
-          '',
-        );
+    final name = ((peer['name'] ?? peer['hostName']) as String? ?? '')
+        .replaceFirst(RegExp(r'\.$'), '');
     final ips =
-        (peer['tailscaleIPs'] as List?)
-            ?.whereType<String>()
-            .toList(growable: false) ??
+        (peer['tailscaleIPs'] as List?)?.whereType<String>().toList(
+          growable: false,
+        ) ??
         const <String>[];
     final ip = ips.isEmpty ? '' : ips.first;
     if (name.isEmpty && ip.isEmpty) {
@@ -425,8 +423,19 @@ List<TrackerInfo> tailscalePeersToTrackerInfos(
     final active = peer['active'] == true;
     final curAddr = peer['curAddr'] as String? ?? '';
     final relay = peer['relay'] as String? ?? '';
+    final directVerified = peer['directVerified'] == true;
+    final derpBlocked = peer['derpDataBlocked'] == true;
+    final dropped =
+        ((peer['derpDataDropped'] as num?)?.toInt() ?? 0) +
+        ((peer['derpDataDroppedRx'] as num?)?.toInt() ?? 0);
     final transport = !online
         ? 'offline'
+        : directVerified && curAddr.isNotEmpty
+        ? 'direct $curAddr'
+        : derpBlocked
+        ? dropped > 0
+              ? 'derp blocked ($dropped)'
+              : 'derp blocked'
         : curAddr.isNotEmpty
         ? 'direct $curAddr'
         : relay.isNotEmpty
@@ -438,11 +447,7 @@ List<TrackerInfo> tailscalePeersToTrackerInfos(
         upload: (peer['txBytes'] as num?)?.toInt() ?? 0,
         download: (peer['rxBytes'] as num?)?.toInt() ?? 0,
         start: now,
-        metadata: Metadata(
-          network: 'tailscale',
-          host: name,
-          destinationIP: ip,
-        ),
+        metadata: Metadata(network: 'tailscale', host: name, destinationIP: ip),
         chains: [proxy, transport, if (online && !active) 'idle'],
         rule: 'Tailscale',
         rulePayload: '',

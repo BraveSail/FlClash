@@ -34,7 +34,10 @@ void main() {
 
     expect(infos, hasLength(2));
     final laptop = infos.first;
-    expect(laptop.metadata.host, 'laptop.tailnet.ts.net'); // trailing dot trimmed
+    expect(
+      laptop.metadata.host,
+      'laptop.tailnet.ts.net',
+    ); // trailing dot trimmed
     expect(laptop.metadata.destinationIP, '100.64.0.5');
     expect(laptop.metadata.network, 'tailscale');
     expect(laptop.chains, contains('ts'));
@@ -65,13 +68,51 @@ void main() {
     expect(infos.single.chains, isNot(contains('idle')));
   });
 
+  test('p2p-only peers show the blocked relay path instead of derp', () {
+    final infos = tailscalePeersToTrackerInfos({
+      'proxy': 'ts',
+      'peers': [
+        {
+          'name': 'phone',
+          'online': true,
+          'active': true,
+          'curAddr': '',
+          'relay': 'tok',
+          'directVerified': false,
+          'derpDataBlocked': true,
+          'derpDataDropped': 4,
+          'derpDataDroppedRx': 3,
+          'tailscaleIPs': ['100.64.0.9'],
+        },
+        {
+          'name': 'laptop',
+          'online': true,
+          'active': true,
+          'curAddr': '[2409:8a55::1]:41641',
+          'directVerified': true,
+          'tailscaleIPs': ['100.64.0.5'],
+        },
+      ],
+    }, now);
+
+    final phone = infos.first;
+    expect(phone.chains, contains('derp blocked (7)'));
+    expect(phone.chains, isNot(contains('derp via tok')));
+
+    final laptop = infos.last;
+    expect(laptop.chains, contains('direct [2409:8a55::1]:41641'));
+  });
+
   test('peers without name or ip are skipped; bad payload is safe', () {
     expect(
       tailscalePeersToTrackerInfos({
         'proxy': 'ts',
         'peers': [
           {'online': true},
-          {'name': 'ok', 'tailscaleIPs': ['100.64.0.1']},
+          {
+            'name': 'ok',
+            'tailscaleIPs': ['100.64.0.1'],
+          },
         ],
       }, now),
       hasLength(1),
