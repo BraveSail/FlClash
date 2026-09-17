@@ -314,6 +314,9 @@ func handleGetConnections() *statistic.Snapshot {
 // periodic pass.
 func handleInjectNetworkChange() bool {
 	peerdirectory.InjectNetworkChange()
+	// Say so even when no directory answers: the app's connectivity callback
+	// otherwise leaves no trace in the log at all.
+	log.Debugln("[PeerDirectory] network change from the platform: republishing this node's address")
 	return true
 }
 
