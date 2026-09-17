@@ -66,3 +66,28 @@ rule. It works in principle (`dns/middleware.go` records `IP -> host` for every 
 as long as a resolver or the application keeps an address, a missing mapping sends that
 connection straight to the peer, unencrypted, and the peer is not reachable that way. Wrapping
 ICMP keeps the tunnel as the only path, which is what the deployment is for.
+
+## Pinging something that is not the peer
+
+The same envelope answers "ping an address the phone cannot reach itself": put the address the
+originator wanted to reach in the envelope, and the peer sends the echo for real.
+
+```
+magic(4) | version(1) | kind(1) | family(1) | target(4 or 16) | icmp message
+```
+
+- The rules decide which peer asks: a destination that matches a rule whose outbound is a node
+  running the responder is encapsulated, everything else keeps today's behaviour.
+- The responder performs a real echo to `target` (not to itself) and relays whatever comes back,
+  so the round trip the phone measures is genuinely `phone -> peer -> target -> peer -> phone`.
+  A timeout is relayed as a timeout; nothing is invented.
+- Sending that echo needs no privileges: Windows has `Icmp6SendEcho2`/`IcmpSendEcho2`, Linux and
+  Android have unprivileged ICMP sockets. Both are the same primitives the system ping uses.
+- The identifier in the ICMP header is owned by the ping tool, and the OS echo API rewrites it.
+  The tunnel side therefore maps the identifier on the way out and restores it on the way back,
+  or the reply never matches the request.
+
+What it buys: IPv4 ICMP from a node whose carrier only gives IPv6, a reachability check from the
+peer's network instead of the phone's, and a real RTT for both. What it does not buy: a way to
+exit through a node that is not running the responder (a plain VLESS node to a VPS has nobody to
+answer), and it still covers echo only.
