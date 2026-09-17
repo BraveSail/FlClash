@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +23,13 @@ import (
 //
 // The core only publishes logs while a host is subscribed, which is what the
 // app's log switch does, so this also proves that path stays wired.
+//
+// Point it at a real directory to watch a node report:
+//
+//	FLCLASH_CORE_BIN=FlClashCore.exe FLCLASH_HARNESS_SECONDS=50 \
+//	  FLCLASH_HARNESS_DIRECTORY_URL=https://hub.see.moe \
+//	  FLCLASH_HARNESS_DIRECTORY_TOKEN=... FLCLASH_HARNESS_DIRECTORY_ID=pc-debug \
+//	  FLCLASH_HARNESS_HEARTBEAT=30 go test -run TestCoreLogDeliveryOverIPC -v .
 func TestCoreLogDeliveryOverIPC(t *testing.T) {
 	coreBin := os.Getenv("FLCLASH_CORE_BIN")
 	if coreBin == "" {
@@ -29,6 +37,14 @@ func TestCoreLogDeliveryOverIPC(t *testing.T) {
 	}
 
 	home := t.TempDir()
+	directoryURL := envOr("FLCLASH_HARNESS_DIRECTORY_URL", "https://peer-directory.invalid")
+	directoryToken := envOr("FLCLASH_HARNESS_DIRECTORY_TOKEN", "debug")
+	directoryID := envOr("FLCLASH_HARNESS_DIRECTORY_ID", "pc")
+	heartbeat := envOr("FLCLASH_HARNESS_HEARTBEAT", "")
+	heartbeatLine := ""
+	if heartbeat != "" {
+		heartbeatLine = "\n    heartbeat: " + heartbeat
+	}
 	config := `log-level: debug
 mixed-port: 17890
 mode: rule
@@ -37,9 +53,9 @@ proxies:
     type: tailnet-peer
     peer: gt7
     port: 8443
-    directory-url: https://peer-directory.invalid
-    directory-token: debug
-    directory-id: pc
+    directory-url: ` + directoryURL + `
+    directory-token: ` + directoryToken + `
+    directory-id: ` + directoryID + heartbeatLine + `
     proxy:
       type: direct
       name: peer-inner
@@ -183,12 +199,12 @@ rules:
 	send("4", startLogMethod, nil)
 	send("5", forceGcMethod, nil)
 	send("6", asyncTestDelayMethod, TestDelayParams{
-		ProxyName: "TS",
+		ProxyName: "PEER",
 		TestUrl:   "https://www.gstatic.com/generate_204",
 		Timeout:   5000,
 	})
 
-	stop := time.After(12 * time.Second)
+	stop := time.After(time.Duration(envInt("FLCLASH_HARNESS_SECONDS", 12)) * time.Second)
 	seen, related := 0, 0
 	for {
 		select {
@@ -200,6 +216,8 @@ rules:
 			switch {
 			case strings.Contains(payload, "netmon"):
 				fmt.Printf("[netmon] %s\n", payload)
+			case strings.Contains(payload, "PeerDirectory"):
+				fmt.Printf("[peer-directory] %s\n", payload)
 			case seen <= 40:
 				fmt.Printf("[core log] %s\n", payload)
 			}
@@ -211,4 +229,20 @@ rules:
 			return
 		}
 	}
+}
+
+func envOr(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
+}
+
+func envInt(key string, fallback int) int {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			return parsed
+		}
+	}
+	return fallback
 }
