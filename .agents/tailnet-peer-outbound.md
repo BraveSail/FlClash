@@ -45,8 +45,9 @@ The address is the node's own claim, not something the service infers:
   the stored one in place;
 - the worker never records the address a request came from, so a report that travelled through a
   proxy cannot publish the proxy's address;
-- a report leaves the machine only when the address it would publish changed, so the directory is a
-  change log rather than a heartbeat;
+- a report leaves the machine when the address it would publish changed, and otherwise at least
+  every two minutes (`heartbeat`, floored at 30 seconds) - the directory shows a node as offline
+  once it has been quiet for its online window, so last-seen has to mean something;
 - `injectNetworkChange` - the app's connectivity callback, an interface switch or a reconnected VPN -
   republishes immediately instead of waiting for the next polling pass;
 - `tailnet-peer` resolves through a short cache, and when the directory is unreachable it keeps
