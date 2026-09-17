@@ -39,6 +39,7 @@ _AppSettingProps _$AppSettingPropsFromJson(Map<String, dynamic> json) =>
       showTrayTitle: json['showTrayTitle'] as bool? ?? true,
       checkCertificate: json['checkCertificate'] as bool? ?? true,
       customUserAgent: json['customUserAgent'] as String? ?? '',
+      directoryId: json['directoryId'] as String? ?? '',
     );
 
 Map<String, dynamic> _$AppSettingPropsToJson(_AppSettingProps instance) =>
@@ -68,6 +69,7 @@ Map<String, dynamic> _$AppSettingPropsToJson(_AppSettingProps instance) =>
       'showTrayTitle': instance.showTrayTitle,
       'checkCertificate': instance.checkCertificate,
       'customUserAgent': instance.customUserAgent,
+      'directoryId': instance.directoryId,
     };
 
 const _$RestoreStrategyEnumMap = {

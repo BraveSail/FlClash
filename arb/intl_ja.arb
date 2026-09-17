@@ -145,6 +145,8 @@
   "general": "一般",
   "systemProxyDesc": "システムプロキシを設定します",
   "userAgent": "User-Agent",
+  "directoryId": "ピアディレクトリのノード名",
+  "directoryIdTip": "英数字・ドット・ハイフン・アンダースコアのみ、63 文字以内",
   "unifiedDelay": "統一遅延",
   "unifiedDelayDesc": "ハンドシェイクなどの余分な遅延を除きます",
   "tcpConcurrent": "TCP同時接続",

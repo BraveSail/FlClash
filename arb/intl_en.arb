@@ -145,6 +145,8 @@
   "general": "General",
   "systemProxyDesc": "Set the system proxy",
   "userAgent": "User-Agent",
+  "directoryId": "Peer directory name",
+  "directoryIdTip": "Use letters, digits, dot, dash or underscore, up to 63 characters",
   "unifiedDelay": "Unified delay",
   "unifiedDelayDesc": "Remove extra delays such as handshakes",
   "tcpConcurrent": "TCP concurrent",

@@ -396,6 +396,12 @@ class MessageLookup extends MessageLookupByLibrary {
       "Режим разработчика включён.",
     ),
     "direct": MessageLookupByLibrary.simpleMessage("Прямой"),
+    "directoryId": MessageLookupByLibrary.simpleMessage(
+      "Имя узла в каталоге пиров",
+    ),
+    "directoryIdTip": MessageLookupByLibrary.simpleMessage(
+      "Только латинские буквы, цифры, точка, дефис и подчёркивание, до 63 символов",
+    ),
     "disableUDP": MessageLookupByLibrary.simpleMessage("Отключить UDP"),
     "disclaimer": MessageLookupByLibrary.simpleMessage(
       "Отказ от ответственности",
@@ -565,9 +571,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "inputRuleContent": MessageLookupByLibrary.simpleMessage(
       "Введите содержимое правила",
     ),
-    "installedAppsPermissionDeniedMessage": MessageLookupByLibrary.simpleMessage(
-      "Разрешение на список приложений отклонено, поэтому установленные приложения недоступны. Предоставьте его вручную в системных настройках.",
-    ),
+    "installedAppsPermissionDeniedMessage":
+        MessageLookupByLibrary.simpleMessage(
+          "Разрешение на список приложений отклонено, поэтому установленные приложения недоступны. Предоставьте его вручную в системных настройках.",
+        ),
     "installedAppsPermissionDesc": MessageLookupByLibrary.simpleMessage(
       "Эта система не выдаёт список установленных приложений без разрешения. Предоставьте его, чтобы настроить прокси для отдельных приложений.",
     ),

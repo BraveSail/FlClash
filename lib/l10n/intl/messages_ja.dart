@@ -314,6 +314,10 @@ class MessageLookup extends MessageLookupByLibrary {
       "開発者モードが有効になりました。",
     ),
     "direct": MessageLookupByLibrary.simpleMessage("ダイレクト"),
+    "directoryId": MessageLookupByLibrary.simpleMessage("ピアディレクトリのノード名"),
+    "directoryIdTip": MessageLookupByLibrary.simpleMessage(
+      "英数字・ドット・ハイフン・アンダースコアのみ、63 文字以内",
+    ),
     "disableUDP": MessageLookupByLibrary.simpleMessage("UDPを無効化"),
     "disclaimer": MessageLookupByLibrary.simpleMessage("免責事項"),
     "disclaimerDesc": MessageLookupByLibrary.simpleMessage(

@@ -351,6 +351,7 @@ class SetupAction extends _$SetupAction {
     if (scriptContent?.isNotEmpty == true) {
       rawConfig = await handleEvaluate(scriptContent!, rawConfig);
     }
+    applyDirectoryId(rawConfig, ref.read(appSettingProvider).directoryId);
     final directory = await appPath.profilesPath;
     final res = makeRealProfileTask(
       MakeRealProfileState(

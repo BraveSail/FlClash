@@ -70,6 +70,53 @@ class UaItem extends ConsumerWidget {
   }
 }
 
+class DirectoryIdItem extends ConsumerWidget {
+  const DirectoryIdItem({super.key});
+
+  Future<void> _handleShowDialog(BuildContext context, WidgetRef ref) async {
+    final appLocalizations = context.appLocalizations;
+    final value = await dialogs.showCommonDialog<String>(
+      child: InputDialog(
+        title: appLocalizations.directoryId,
+        value: ref.read(appSettingProvider).directoryId,
+        labelText: appLocalizations.directoryId,
+        validator: (value) {
+          final trimmed = value?.trim() ?? '';
+          if (trimmed.isEmpty) {
+            return null;
+          }
+          if (!RegExp(r'^[A-Za-z0-9._-]{1,63}$').hasMatch(trimmed)) {
+            return appLocalizations.directoryIdTip;
+          }
+          return null;
+        },
+      ),
+    );
+    if (value == null) {
+      return;
+    }
+    ref
+        .read(appSettingProvider.notifier)
+        .update((state) => state.copyWith(directoryId: value.trim()));
+  }
+
+  @override
+  Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
+    final directoryId = ref.watch(
+      appSettingProvider.select((state) => state.directoryId),
+    );
+    return ListItem(
+      leading: const Icon(Icons.hub_outlined),
+      title: Text(appLocalizations.directoryId),
+      subtitle: Text(
+        directoryId.isEmpty ? appLocalizations.defaultText : directoryId,
+      ),
+      onTap: () => _handleShowDialog(context, ref),
+    );
+  }
+}
+
 class KeepAliveIntervalItem extends ConsumerWidget {
   const KeepAliveIntervalItem({super.key});
 
@@ -352,6 +399,7 @@ class GeneralListView extends ConsumerWidget {
         items: [
           const LogLevelItem(),
           const UaItem(),
+          const DirectoryIdItem(),
           const TestUrlItem(),
           if (system.isDesktop) const KeepAliveIntervalItem(),
           const HostsItem(),

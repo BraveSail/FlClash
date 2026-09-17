@@ -31,6 +31,7 @@ export 'network.dart';
 export 'num.dart';
 export 'package.dart';
 export 'path.dart';
+export 'peer_directory.dart';
 export 'picker.dart';
 export 'preferences.dart';
 export 'print.dart';
