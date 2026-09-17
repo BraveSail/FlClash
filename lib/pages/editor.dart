@@ -1052,25 +1052,31 @@ class _PreviewBodyState extends State<_PreviewBody>
   }
 
   Widget _buildVerticalScrollbar(Size viewport) {
+    final double track = viewport.height - _scrollbarGap * 2;
+    if (track <= 0) {
+      return const SizedBox.shrink();
+    }
+    final ScrollPosition? position = _verticalPosition;
+    if (position == null) {
+      return const SizedBox.shrink();
+    }
     return Positioned(
       right: _scrollbarGap,
       top: _scrollbarGap,
       bottom: _scrollbarGap,
       child: AnimatedBuilder(
-        animation: _verticalController,
+        // Metrics change with the viewport, not only with the offset, so the
+        // thumb is measured from the position itself.
+        animation: position,
         builder: (context, _) {
-          final ScrollPosition? position = _verticalPosition;
-          if (position == null) {
-            return const SizedBox.shrink();
-          }
           final double extent = position.maxScrollExtent;
-          final double track = viewport.height - _scrollbarGap * 2;
-          if (extent <= 0 || track <= 0) {
+          final double viewportDimension = position.viewportDimension;
+          if (extent <= 0 || viewportDimension <= 0) {
             return const SizedBox.shrink();
           }
-          final double contentHeight = extent + position.viewportDimension;
+          final double contentHeight = extent + viewportDimension;
           final double thumb =
-              (track * position.viewportDimension / contentHeight).clamp(
+              (track * viewportDimension / contentHeight).clamp(
                 _minThumb.clamp(0.0, track),
                 track,
               );
@@ -1151,20 +1157,28 @@ class _PreviewBodyState extends State<_PreviewBody>
                         // Selectable so long-press (and drag, on desktop) can
                         // copy text out of the preview.
                         child: SelectionArea(
-                          child: ListView.builder(
-                            controller: _verticalController,
-                            // Never scrollable, so the list drops its drag
-                            // recognizer and the pan keeps every gesture.
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemExtent: _lineHeight,
-                            padding: const EdgeInsets.only(
-                              left: _paddingLeft,
-                              top: _paddingVertical,
-                              bottom: _paddingVertical,
+                          child: ScrollConfiguration(
+                            // The preview paints its own bars; a platform
+                            // scrollbar would sit next to them at a size of its
+                            // own.
+                            behavior: ScrollConfiguration.of(
+                              context,
+                            ).copyWith(scrollbars: false),
+                            child: ListView.builder(
+                              controller: _verticalController,
+                              // Never scrollable, so the list drops its drag
+                              // recognizer and the pan keeps every gesture.
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemExtent: _lineHeight,
+                              padding: const EdgeInsets.only(
+                                left: _paddingLeft,
+                                top: _paddingVertical,
+                                bottom: _paddingVertical,
+                              ),
+                              itemCount: _lines.length,
+                              itemBuilder: (context, index) =>
+                                  _buildLine(context, index, style),
                             ),
-                            itemCount: _lines.length,
-                            itemBuilder: (context, index) =>
-                                _buildLine(context, index, style),
                           ),
                         ),
                       ),

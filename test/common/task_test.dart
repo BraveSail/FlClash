@@ -577,4 +577,28 @@ void main() {
     expect(encoded, contains('\n'));
     expect(await mapListTask([1, 2, 3], _double), [2, 4, 6]);
   });
+
+  test('profile key order follows the profile file', () async {
+    final directory = await Directory.systemTemp.createTemp('fl_clash_order');
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File(join(directory.path, 'config.yaml'));
+    await file.writeAsString('''
+mixed-port: 7890
+dns:
+  enable: true
+rules:
+  - MATCH,DIRECT
+''');
+
+    final order = await readProfileKeyOrder(file.path);
+
+    expect(order, ['mixed-port', 'dns', 'rules']);
+    final ordered = orderTopLevelKeys({
+      'rules': ['MATCH,DIRECT'],
+      'tun': {'enable': true},
+      'dns': {'enable': true},
+      'mixed-port': 7890,
+    }, order);
+    expect(ordered.keys.toList(), ['mixed-port', 'dns', 'rules', 'tun']);
+  });
 }

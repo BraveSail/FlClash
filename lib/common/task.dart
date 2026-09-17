@@ -299,8 +299,54 @@ Future<({String yaml, String md5})> _makeRealProfileTask(
     rawConfig['proxy-groups'] = data.proxyGroups;
   }
   rawConfig['rules'] = rules;
-  final yaml = await _encodeYaml(Map<String, dynamic>.from(rawConfig));
+  final keyOrder = await readProfileKeyOrder(
+    join(profilesPath, '$profileId.yaml'),
+  );
+  final yaml = await _encodeYaml(
+    orderTopLevelKeys(Map<String, dynamic>.from(rawConfig), keyOrder),
+  );
   return (yaml: yaml, md5: yaml.toMd5());
+}
+
+/// The core hands the profile back as parsed data, so the keys arrive in the
+/// parser's order instead of the one the file was written in. Reading the
+/// profile's own top-level keys back lets the generated config - and the
+/// preview built from it - read like the subscription the user imported.
+@visibleForTesting
+Future<List<String>> readProfileKeyOrder(String path) async {
+  try {
+    final File file = File(path);
+    if (!await file.exists()) {
+      return const [];
+    }
+    final String content = await file.readAsString();
+    return RegExp(r'^([A-Za-z0-9_\-]+):', multiLine: true)
+        .allMatches(content)
+        .map((match) => match.group(1)!)
+        .toList();
+  } catch (_) {
+    return const [];
+  }
+}
+
+@visibleForTesting
+Map<String, dynamic> orderTopLevelKeys(
+  Map<String, dynamic> config,
+  List<String> keyOrder,
+) {
+  if (keyOrder.isEmpty) {
+    return config;
+  }
+  final ordered = <String, dynamic>{};
+  for (final key in keyOrder) {
+    if (config.containsKey(key)) {
+      ordered[key] = config[key];
+    }
+  }
+  for (final entry in config.entries) {
+    ordered.putIfAbsent(entry.key, () => entry.value);
+  }
+  return ordered;
 }
 
 Future<List<String>> shakingProfileTask(
