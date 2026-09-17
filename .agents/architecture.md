@@ -199,6 +199,10 @@ second provider write — stay hand-written rather than growing extra parameters
 
 ## State Management
 
+The tailnet peer outbound (`type: tailnet-peer`) and its address source are described in
+`.agents/tailnet-peer-outbound.md`: it keeps mihomo's proxy protocols untouched and only
+substitutes the server address of a peer whose underlay address changes.
+
 Provider files in `lib/providers/`:
 
 - `app.dart`: runtime/UI state, logs, traffic, delays, loading, navigation.
