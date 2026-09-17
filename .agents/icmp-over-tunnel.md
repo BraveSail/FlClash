@@ -1,5 +1,68 @@
 # ICMP over the tunnel
 
+## The goal in one line
+
+`ping <anything>` on any mihomo node should travel the real path its rules select and report a
+real round trip. Today it cannot: mihomo answers ICMP itself (fake echo for a fake-ip) or sends it
+DIRECT through a raw socket, and the proxy chain never sees it. The design below turns that into
+"ICMP is a connection like any other", with the carriers that can actually move it.
+
+## The hook that already exists
+
+sing-tun hands every ICMP echo to the handler before anything else:
+
+```go
+PrepareConnection(network, source, destination, routeContext, timeout) (DirectRouteDestination, error)
+```
+
+- a non-nil destination receives each packet whole (`WritePacket(*buf.Buffer)`) and answers through
+  `routeContext.WritePacket(fullIPPacket)`;
+- nil means "the stack answers it", which is how the fake echo happens today;
+- mihomo's handler uses exactly two outcomes: `ping.ConnectDestination` (a raw DIRECT socket) or
+  nil. Nothing else is possible, because `C.ProxyAdapter.IsL3Protocol` - whose own comment says it
+  marks an adapter working in L3 - has no caller anywhere in this tree.
+
+So the plumbing is: match the rules for the ICMP flow, and when the winning outbound can carry
+ICMP, return a destination backed by that outbound instead of a raw socket.
+
+## Design
+
+1. **Rule matching**: the tunnel exposes what it already does for TCP and UDP -
+   `MatchProxy(metadata)` - so the TUN handler can ask which outbound an ICMP flow would use, with
+   the domain restored from a fake-ip or a host entry first.
+2. **Capability**: an outbound that can move an echo announces it:
+   `ExchangeICMP(ctx, metadata, icmpMessage) (icmpMessage, error)`. The contract is the ICMP
+   message alone - no IP header - because every carrier puts its own header around it.
+3. **Carriers**:
+   - `direct`: the raw socket path that exists today (`ping.ConnectDestination`), now reached
+     through the same interface, so behaviour is unchanged but the plumbing is uniform;
+   - `vless` (our extension): a new command in the VLESS request - the destination address is
+     already in the header, so the client sends the echo message and the mihomo *listener* on the
+     peer side puts a real echo on the wire to that destination and streams the reply back. Both
+     ends are mihomo, so no third party has to understand it, and nothing extra listens;
+   - `openvpn` (TCP) / `wireguard` / `zerotier` / `masque`: their L3 device already exists
+     (`ipConn.WritePacket`, `ipLink.WritePacket`, the ovpn tun) - each needs the echo written into
+     it and the reply matched back;
+   - `tailnet-peer`: delegates to its inner proxy, and for an echo aimed at the peer itself passes
+     the peer's own address as the destination, so the far end answers as itself.
+4. **Reply**: the destination builds the reply IP packet (source = what was pinged, destination =
+   the original source, payload = the returned echo reply, checksum recomputed) and hands it to
+   `routeContext`. The identifier and sequence travel untouched, so the ping tool matches them.
+
+## What this gives
+
+- `ping pc.lan` -> tunnel -> the peer answers -> real RTT of the tunnel.
+- `ping 223.5.5.5` when the rules send it to a peer -> the *peer* emits the echo -> real RTT of
+  `phone -> peer -> target -> peer -> phone`, and IPv4 works from a node whose carrier only gave it
+  IPv6.
+- Any outbound that can carry ICMP works, so the feature is mihomo-wide, not a peer-to-peer trick.
+
+## What it does not give
+
+- A stock VLESS/SS server that predates the extension cannot answer the new command; the ping then
+  falls back to today's DIRECT/fake behaviour instead of failing the config.
+- Echo only, in the first version.
+
 ## The idea
 
 `ping pc.lan` should measure the real round trip to the peer. VLESS carries a stream (TCP) and,
