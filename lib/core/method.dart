@@ -18,7 +18,6 @@ enum CoreMethod {
   resetTraffic,
   asyncTestDelay,
   getConnections,
-  getTailscaleStatus,
   injectNetworkChange,
   closeConnections,
   resetConnections,

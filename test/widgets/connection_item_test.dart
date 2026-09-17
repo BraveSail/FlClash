@@ -131,7 +131,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('TrackerInfoItem lets long tailscale transports wrap', (
+  testWidgets('TrackerInfoItem lets long chain entries wrap', (
     tester,
   ) async {
     const transport = 'direct 2404:c140:1f00:32::1b:1fbf:41641';
@@ -140,7 +140,7 @@ void main() {
         wrapInProviderScope: true,
         homeBuilder: (child) => Scaffold(body: child),
         child: TrackerInfoItem(
-          trackerInfo: _tracker(chains: const ['Tailscale', transport]),
+          trackerInfo: _tracker(chains: const ['PEER', transport]),
           detailTitle: 'detail',
         ),
       ),
@@ -153,7 +153,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('TrackerInfoDetailView lets long tailscale transports wrap', (
+  testWidgets('TrackerInfoDetailView lets long chain entries wrap', (
     tester,
   ) async {
     const transport = 'direct 2404:c140:1f00:32::1b:1fbf:41641';

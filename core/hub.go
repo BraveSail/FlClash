@@ -20,8 +20,8 @@ import (
 	"github.com/metacubex/mihomo/adapter/outboundgroup"
 	"github.com/metacubex/mihomo/common/observable"
 	"github.com/metacubex/mihomo/common/utils"
+	"github.com/metacubex/mihomo/component/peerdirectory"
 	"github.com/metacubex/mihomo/component/resolver"
-	"github.com/metacubex/mihomo/component/tailnet"
 	"github.com/metacubex/mihomo/component/updater"
 	"github.com/metacubex/mihomo/config"
 	"github.com/metacubex/mihomo/constant"
@@ -308,38 +308,12 @@ func handleGetConnections() *statistic.Snapshot {
 	return statistic.DefaultManager.Snapshot()
 }
 
-// handleGetTailscaleStatus reports every tailscale outbound's netmap view: per-peer
-// online state, the current direct path (CurAddr) or the DERP relay in use, and
-// traffic counters. The connections page folds these into its list so tailnet peers
-// show up next to regular connections with their transport visible.
-func handleGetTailscaleStatus() []tailnet.Status {
-	statuses := make([]tailnet.Status, 0, 1)
-	if tailnet.RegisteredProviderCount() == 0 {
-		log.Warnln("[Tailscale] no tailscale outbound is registered: a tailnet-peer dial cannot resolve a peer")
-	}
-	for _, p := range tunnel.AllProxies() {
-		statusProvider, ok := p.Adapter().(tailnet.StatusProvider)
-		if !ok {
-			continue
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		status, err := statusProvider.TailnetStatus(ctx)
-		cancel()
-		if err != nil {
-			log.Warnln("[Tailscale] status for %s: %v", p.Name(), err)
-			continue
-		}
-		statuses = append(statuses, status)
-	}
-	return statuses
-}
-
 // handleInjectNetworkChange forwards a network change the app observed - a
 // connectivity callback, an interface switch, a re-established VPN - so the
-// tailscale outbounds recompute their endpoints now instead of on their next
+// peer directories republish this node's address now instead of on their next
 // periodic pass.
 func handleInjectNetworkChange() bool {
-	tailnet.InjectNetworkChange()
+	peerdirectory.InjectNetworkChange()
 	return true
 }
 

@@ -50,8 +50,8 @@ class TrackerInfoItem extends ConsumerWidget {
                 for (final chain in chains)
                   CommonChip(
                     label: chain,
-                    // Tailscale transports carry full "direct <ipv6>:port"
-                    // endpoints, which a single line would ellipsize away.
+                    // A chain entry can be a whole resolved endpoint or proxy
+                    // chain, which a single line would ellipsize away.
                     maxLines: 3,
                     onPressed: () => onClickKeyword?.call(chain),
                   ),

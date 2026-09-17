@@ -2,7 +2,7 @@
 
 ## Problem
 
-Two nodes of the same tailnet need to reach each other's services directly - the phone's RustDesk
+Two nodes of the same deployment need to reach each other's services directly - the phone's RustDesk
 client reaching RustDesk on the PC's TCP port 23333 is the driving case - while:
 
 - underlay addresses change without warning: the ISP re-delegates the home IPv6 prefix, and the
@@ -10,81 +10,65 @@ client reaching RustDesk on the PC's TCP port 23333 is the driving case - while:
 - the shared Clash profile cannot carry a dynamic address: whatever the subscription contains is
   fixed until the next refresh, and DDNS lags the address change by minutes;
 - the phone cannot accept inbound connections on cellular, so only the phone can start a
-  connection;
-- tailscale's own direct path needs UDP in both directions, which these networks do not provide,
-  and DERP is reachable but relayed.
+  connection.
 
-The tailnet already supplies the missing piece. The core's `getTailscaleStatus` reports every
-peer's current underlay addresses in real time (the fork's peer rows carry `addrs`, `curAddr`,
-`directVerified` and the DERP drop counters). What is missing is the step from "peer X is currently
-at <address>" to "a program on this device can reach peer X's service on a fixed local address".
+Tailscale's own direct path needs UDP in both directions, which these networks do not provide, and
+the relay it fell back to is what carried the traffic. What that deployment actually used tailscale
+for is the directory half: "peer X is currently at <address>", refreshed in seconds.
 
 ## Decision
 
-Add a thin mihomo outbound, `type: tailnet-peer`, that keeps every protocol detail in mihomo and
-owns exactly one thing: the server address of a peer whose underlay address changes.
+Keep the directory, drop the tunnel it came with. Two mihomo outbounds carry the feature, and every
+protocol detail stays in mihomo:
 
-- The outbound carries an inner proxy configuration (`proxy: {type: vless, ...}`) and replaces its
-  `server` and `port` for each connection with the peer's current address. What travels on the wire
-  is whatever the inner protocol sends - for this deployment, VLESS with `encryption`
-  (VLESS Encryption), which is TCP-only, needs no certificate, and keeps the payload confidential
-  between the two nodes.
-- The peer's address comes from the tailscale status the core already has: `component/tailnet`
-  gains a registry where each tailscale outbound publishes its `StatusProvider`, and this outbound
-  reads the peer row from it. Ordering matches the follower rules below: a verified direct path,
-  then IPv6 sharing a /64 with a local interface, then other IPv6, then IPv4.
-- The inner proxy is rebuilt only when the resolved address changes, and rebuilt again when a dial
-  fails, so a peer that moved networks is reached by the next connection attempt.
-- The node that is reachable (the PC) runs the matching `listeners:` entry
-  (`type: vless`, `decryption: ...`). That listener is the only public surface this design adds,
-  and it carries ciphertext plus a UUID; the services behind it - RustDesk on port 23333, a LAN
-  admin panel - never need to be reachable from the internet.
-- No UDP anywhere: the carrier is TCP, VLESS Encryption protects it, and `udp: true` on the inner
-  proxy moves UDP payloads inside that TCP stream when an application needs them.
+- `peer-directory` publishes this node's current address to a directory service, and answers where
+  the other ids are;
+- `tailnet-peer` carries an inner proxy configuration (`proxy: {type: vless, ...}`) and replaces its
+  `server` and `port` for each connection with the address the directory reports for that peer.
 
-Reachability differences stay in the dial path rather than in separate roles: a peer behind
-cellular answers no inbound dial, so a connection towards it fails fast while connections the peer
-itself starts keep working.
+What travels on the wire is whatever the inner protocol sends - for this deployment, VLESS
+Encryption, which is TCP-only, needs no certificate, and keeps the payload confidential between the
+two nodes. The node that is reachable (the PC) also runs the matching `listeners:` entry
+(`type: vless`, `decryption: ...`); the services behind it - RustDesk on 23333, a LAN admin panel -
+never need to be reachable from the internet.
 
-The earlier loopback follower (`lib/common/p2p_follower.dart`) dialed services directly and is
-superseded by this outbound; its code stays until the outbound lands, then it is removed from the
-tree.
+The directory is a Cloudflare Worker (`BraveSail/peer-directory`): `POST /report` records the
+address a node publishes, `GET /lookup` answers for one or many ids, `GET /watch` pushes changes over
+a WebSocket, and a record is kept until the node changes it (a week without a report expires it).
 
 ## Address source
 
-The core's tailscale status is the only source. The outbound resolves a peer to its addresses in
-this order:
+The address is the node's own claim, not something the service infers:
 
-1. `curAddr` when the peer row reports `directVerified` - a direct path inside the 6.5 second
-   trust window that tailscale itself is already using;
-2. any of the peer's `addrs` that parses as an IPv6 address, preferring ones that share a prefix
-   with a local interface (same LAN) before global ones;
-3. the remaining `addrs`.
-
-`addrs` are the endpoints the peer published, read through the local client's node lookup: the
-status itself reports endpoints for this node only, so without that lookup every peer row is empty
-until a direct path already exists.
-
-The address is re-resolved for each new connection (with a short cache so a burst of connections
-does not re-read the status), so a peer that changed networks is reached by the next connection
-attempt.
+- the report carries the smallest global unicast IPv6 address the node finds on a real interface;
+  ULA, link-local, loopback and private addresses are refused, and a report with no address leaves
+  the stored one in place;
+- the worker never records the address a request came from, so a report that travelled through a
+  proxy cannot publish the proxy's address;
+- a report leaves the machine only when the address it would publish changed, so the directory is a
+  change log rather than a heartbeat;
+- `injectNetworkChange` - the app's connectivity callback, an interface switch or a reconnected VPN -
+  republishes immediately instead of waiting for the next polling pass;
+- `tailnet-peer` resolves through a short cache, and when the directory is unreachable it keeps
+  using the address it saw a moment ago rather than failing every dial.
 
 ## Naming
 
-`peer` accepts the peer's hostname, its MagicDNS name, or any of its tailscale IPs. The first
-matching peer row wins, which keeps one outbound per remote service (a phone may have several:
-RustDesk, a NAS panel, an SSH port).
+A device is named once. `directory-id` is the name this node reports under, and the profile's
+`directory-id-by-platform` map (keyed by `runtime.GOOS`: `windows`, `android`, `linux`, `darwin`)
+gives every device its own name without a per-device setting; the app's own name, when set, wins
+over the map. `directory-peer` is the name this outbound asks for, defaulting to `peer`.
+
+A peer whose name is this node's own name degrades to `DIRECT`, so the entry that dials "pc" on the
+PC reaches the local service instead of dialing itself through the listener.
 
 ## One profile for every device
 
-The deployment shares a single subscription across all devices, so the profile must be correct on
-every node without per-device edits. Two rules make that work:
-
-- the profile lists one `tailnet-peer` outbound per node and one shared `listeners:` entry; every
-  node therefore both serves its peers and can reach the others;
-- an outbound whose `peer` resolves to this node itself degrades to `DIRECT`, so the entry that
-  dials "pc" on the phone dials the local service on the PC. The self check reads the `self` row of
-  the same tailscale status the address comes from.
+The deployment shares a single subscription across all devices, so the profile has to be correct on
+every node without per-device edits: the profile lists one `tailnet-peer` outbound per node, each
+carrying the directory inline (`directory-url`, `directory-token`) plus the platform map, and one
+shared `listeners:` entry. Every node therefore both serves its peers and can reach the others, and
+no device needs a directory name in its own settings.
 
 Keys are shared on purpose: one VLESS Encryption server key fills every node's listener
 `decryption`, and one derived client key fills every outbound's `encryption`, so any node can reach
@@ -92,36 +76,34 @@ any other node with the same profile.
 
 ## Invariants
 
-- The outbound never dials an address that did not come from the tailscale status of a peer it was
-  configured with, and never a port other than its own `port`.
+- The outbound never dials an address that did not come from the directory, and never a port other
+  than its own `port`.
 - A peer that is this node degrades to `DIRECT` instead of dialing itself through the listener.
 - It never rewrites the profile or the inner proxy's own options: only `server` and `port` are
   substituted.
-- Only the node running the listener needs an inbound port. The dialing node adds none.
-- The inner proxy's configuration is the source of truth for everything except the address, so
-  switching the tunnel protocol (VLESS Encryption today, something else later) is a config change.
+- Only the node running the listener needs an inbound port. The dialing node adds none, and a peer
+  behind cellular is reachable in the direction it started.
+- One directory client per (url, token, id, port) is shared by every outbound that names it, so a
+  node reports itself once however many peers the profile lists.
 
 ## Exposure
 
-Only the listener side is reachable from the internet, and what answers there is the inner
-protocol - VLESS Encryption in this deployment - so the port carries ciphertext and authenticates
-the client by UUID before any payload is accepted. Services behind it stay private: RustDesk's
-23333 can be firewalled to the tailnet or the LAN, and nothing about this design asks for a public
-business port.
+Only the listener side is reachable from the internet, and what answers there is the inner protocol
+- VLESS Encryption in this deployment - so the port carries ciphertext and authenticates the client
+by UUID before any payload is accepted. Services behind it stay private: RustDesk's 23333 can be
+firewalled to the LAN, and nothing about this design asks for a public business port.
 
-The dialing side adds no listener at all.
-
-## Out of scope for the first version
+## Out of scope
 
 - UDP mappings. RustDesk's direct path is TCP; a UDP mapping needs a session table first.
 - Relay fallback. When a peer's address is unreachable the connection fails; routing it through a
   VPS relay is a later addition behind the same interface.
-- Hole punching. Neither side of this feature changes tailscale's own path selection.
+- Hole punching. Neither side of this feature changes how the underlay paths are chosen.
 
 ## Testing
 
-- Unit: address ordering (verified direct before LAN before global), deterministic peer indexes,
-  loopback address formatting, port parsing and validation.
-- Unit: the pipe's half-close behaviour and its cleanup on dial failure or listener shutdown.
-- Manual: with the PC's RustDesk on TCP 23333, the phone dials `127.0.0.2:23333` on cellular and
+- Unit: the directory registry (a replacement is kept, every directory sees a network-change
+  injection), address selection, the shared directory client, resolution through an inline
+  directory, the self shortcut, and the loopback path a self peer dials.
+- Manual: with the PC's RustDesk on TCP 23333, the phone dials its own rule for `pc` on cellular and
   reaches the PC; moving the PC to a new IPv6 prefix is picked up by the next connection.

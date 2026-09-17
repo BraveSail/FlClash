@@ -96,7 +96,6 @@ const (
 	resetTrafficMethod             CoreMethod = "resetTraffic"
 	asyncTestDelayMethod           CoreMethod = "asyncTestDelay"
 	getConnectionsMethod           CoreMethod = "getConnections"
-	getTailscaleStatusMethod       CoreMethod = "getTailscaleStatus"
 	injectNetworkChangeMethod      CoreMethod = "injectNetworkChange"
 	closeConnectionsMethod         CoreMethod = "closeConnections"
 	resetConnectionsMethod         CoreMethod = "resetConnections"

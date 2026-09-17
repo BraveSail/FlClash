@@ -33,16 +33,21 @@ func TestCoreLogDeliveryOverIPC(t *testing.T) {
 mixed-port: 17890
 mode: rule
 proxies:
-  - name: TS
-    type: tailscale
-    endpoint-filter: nic-ipv6
-    hostname: flclash-debug
-    state-dir: ts-debug
+  - name: PEER
+    type: tailnet-peer
+    peer: gt7
+    port: 8443
+    directory-url: https://peer-directory.invalid
+    directory-token: debug
+    directory-id: pc
+    proxy:
+      type: direct
+      name: peer-inner
 proxy-groups:
   - name: G
     type: select
     proxies:
-      - TS
+      - PEER
       - DIRECT
 rules:
   - MATCH,G
@@ -189,7 +194,7 @@ rules:
 		select {
 		case payload := <-logs:
 			seen++
-			if strings.Contains(payload, "netmon") || strings.Contains(payload, "Tailscale") {
+			if strings.Contains(payload, "netmon") || strings.Contains(payload, "PeerDirectory") {
 				related++
 			}
 			switch {
@@ -199,7 +204,7 @@ rules:
 				fmt.Printf("[core log] %s\n", payload)
 			}
 		case <-stop:
-			fmt.Printf("[harness] core log events: %d (tailscale/netmon: %d)\n", seen, related)
+			fmt.Printf("[harness] core log events: %d (peer-directory/netmon: %d)\n", seen, related)
 			if seen == 0 {
 				t.Fatal("no core log events arrived over IPC")
 			}
