@@ -71,10 +71,26 @@ attempt.
 matching peer row wins, which keeps one outbound per remote service (a phone may have several:
 RustDesk, a NAS panel, an SSH port).
 
+## One profile for every device
+
+The deployment shares a single subscription across all devices, so the profile must be correct on
+every node without per-device edits. Two rules make that work:
+
+- the profile lists one `tailnet-peer` outbound per node and one shared `listeners:` entry; every
+  node therefore both serves its peers and can reach the others;
+- an outbound whose `peer` resolves to this node itself degrades to `DIRECT`, so the entry that
+  dials "pc" on the phone dials the local service on the PC. The self check reads the `self` row of
+  the same tailscale status the address comes from.
+
+Keys are shared on purpose: one VLESS Encryption server key fills every node's listener
+`decryption`, and one derived client key fills every outbound's `encryption`, so any node can reach
+any other node with the same profile.
+
 ## Invariants
 
 - The outbound never dials an address that did not come from the tailscale status of a peer it was
   configured with, and never a port other than its own `port`.
+- A peer that is this node degrades to `DIRECT` instead of dialing itself through the listener.
 - It never rewrites the profile or the inner proxy's own options: only `server` and `port` are
   substituted.
 - Only the node running the listener needs an inbound port. The dialing node adds none.
