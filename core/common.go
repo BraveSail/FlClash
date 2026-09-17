@@ -159,7 +159,23 @@ func updateListeners(cfg *config.Config) {
 	if !features.Android {
 		listener.ReCreateTun(general.Tun, tunnel.Tunnel)
 	}
+	logTailscaleOutbounds(cfg)
 	ensureTailscaleInboundRule(cfg)
+}
+
+// A tailnet-peer outbound resolves a peer through the tailscale outbound's
+// status, so a config that lost that entry fails every dial with "no tailnet
+// peer matches"; report what each applied config carries.
+func logTailscaleOutbounds(cfg *config.Config) {
+	count := 0
+	if cfg != nil {
+		for _, proxy := range cfg.Proxies {
+			if proxy.Type() == constant.Tailscale {
+				count++
+			}
+		}
+	}
+	log.Infoln("[Tailscale] applied configuration carries %d tailscale outbound(s)", count)
 }
 
 func patchSelectGroup(mapping map[string]string) {

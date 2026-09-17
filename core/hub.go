@@ -314,6 +314,9 @@ func handleGetConnections() *statistic.Snapshot {
 // show up next to regular connections with their transport visible.
 func handleGetTailscaleStatus() []tailnet.Status {
 	statuses := make([]tailnet.Status, 0, 1)
+	if tailnet.RegisteredProviderCount() == 0 {
+		log.Warnln("[Tailscale] no tailscale outbound is registered: a tailnet-peer dial cannot resolve a peer")
+	}
 	for _, p := range tunnel.AllProxies() {
 		statusProvider, ok := p.Adapter().(tailnet.StatusProvider)
 		if !ok {
