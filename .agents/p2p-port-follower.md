@@ -70,6 +70,19 @@ local node.
 - Disabled mappings close their listeners; a failed dial fails that one connection and leaves the
   listener ready for the next attempt.
 
+## Exposure
+
+The follower adds no inbound surface. Its listeners are loopback only, and the shared profile gains
+no `listeners:`, `tunnels:`, or `mixed-port` entries. The only traffic it originates is an outbound
+dial, and that dial is bounded twice: the target must be a peer from the core's tailscale status,
+and the port must be in the configured list. A mapping therefore reaches exactly the service the
+user already chose to expose on that peer, at the port that service already listens on, and the
+peer's own firewall and service authentication remain the authority for who may connect.
+
+The design deliberately avoids the alternative where the peer runs a proxy listener for this
+feature: that variant would open a port whose reachability depends on the core's elevated context,
+which is a larger surface than dialing a service that is already listening.
+
 ## Out of scope for the first version
 
 - UDP mappings. RustDesk's direct path is TCP; a UDP mapping needs a session table first.
