@@ -7,9 +7,10 @@ path exists, and a network error when it does not.
 
 - `ping pc.lan` sends the tool's own echo message to the address the directory publishes for the
   peer. The peer's stack answers it, exactly as it would if both nodes shared a network. Nothing is
-  wrapped, re-addressed or re-typed, so the measured time is the path that was asked about.
-- `ping t.cn` resolves the name the fake address stands for and makes the echo from this node, with
-  the answer written back as the address that was pinged. Real latency, no fake reply.
+  wrapped and no message is re-typed, so the measured time is the path that was asked about.
+- `ping t.cn` keeps the same message too: the placeholder the resolver handed out is swapped for the
+  address the name stands for on the way out, and the answer is written back as the placeholder on
+  the way in. It runs the direct path a raw address runs, so a name costs what an address costs.
 - An echo that cannot be put on the wire as it stands - the tool asked in IPv4 while the peer only
   has an IPv6 address, or the rules sent the echo to a node that is not the target - is answered
   with the ICMP error a router would send. `ping` prints `Destination host unreachable` instead of
@@ -38,15 +39,18 @@ replies - which is where the fake echo comes from. That hook is what the feature
 - The rules pick the outbound. A rule may name a group: the group's current selection is read
   without touching it, and decorators around an outbound (the one that closes it when the config is
   replaced) are looked through - they embed the adapter interface and hide everything else.
-- `tailnet-peer` answers for its own name: the echo goes to the peer's published address with
-  `IcmpSendEcho`/`Icmp6SendEcho2` on Windows and an unprivileged ICMP socket elsewhere, so the
-  peer's kernel - not this node - produces the answer. `directEcho` never rewrites the message.
-- An outbound that cannot move an echo at all (every proxy protocol: they carry TCP and UDP
-  streams, not ICMP) leaves the flow on the path it would have had without this feature. A name is
-  resolved and answered for real by this node; a real address keeps sing-tun's DIRECT socket; the
-  TUN's own ranges keep the stack's reply.
-- The outbound that *is* this node says so (`icmptunnel.ErrLocalPath`) and the TUN side takes the
-  same direct path, because a real echo from here would enter these rules again.
+- `tailnet-peer` names the address an echo aimed at it has to travel to (`C.ICMPRedirect`), and the
+  flow keeps the tool's own message: only the address on the wire changes, so the peer's kernel -
+  not this node - produces the answer.
+- An outbound that moves no echo (every proxy protocol: they carry TCP and UDP streams, not ICMP)
+  leaves the flow on the path it would have had without this feature. A name is resolved once and
+  sent to the address it stands for; a raw address keeps sing-tun's DIRECT socket; the TUN's own
+  ranges keep the stack's reply.
+- The outbound that *is* this node says so (`icmptunnel.ErrLocalPath`), and the TUN side sends the
+  tool's own echo to the address the name stands for - which for this node is its own network.
+- A flow pinged as a placeholder is answered as the placeholder: the direct path's answers are
+  readdressed to the address the tool pinged (v4 header and ICMPv6 pseudo-header checksums
+  recomputed), because a tool drops an answer from an address it never pinged.
 - An echo that cannot be delivered as it stands returns `icmptunnel.ErrUnreachable`, and the TUN
   side writes the ICMP error a router would write (v4 type 3 code 1, v6 type 1 code 0) with the
   original header and message quoted inside it.
@@ -69,6 +73,8 @@ peer is answered on the node that sent it.
 - The echo is not wrapped, so a peer has to answer ICMP from the outside, the way any host on a
   shared network does. A peer behind a carrier that blocks inbound ICMP (a phone on cellular, for
   one) cannot be pinged; the ping times out, which is the truth about that path.
+- A name costs one resolution per ping run: the address it resolves to is kept for the flow, so a
+  run of pings resolves once and then runs the same path an address runs.
 - The tool's family has to match the peer's address family. `ping pc.lan` that resolves to an
   IPv4 placeholder while the peer only has an IPv6 address gets a `host unreachable` error, not an
   invented ICMPv6 echo; `ping -6 pc.lan` - or a DNS answer that offers only the peer's family - is
