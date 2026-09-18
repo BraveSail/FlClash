@@ -1,19 +1,22 @@
-# ICMP over the tunnel
+# ICMP through mihomo
 
 ## What a user gets
 
-`ping <anything>` on a node that runs this build travels the path its rules select and reports a
-real round trip:
+`ping <anything>` on a node that runs this build reports the truth: a real round trip when the
+path exists, and a network error when it does not.
 
-- `ping pc.lan` on the PC answers from the PC itself, and from the phone it measures the tunnel:
-  the echo is carried to the PC and answered there.
-- `ping 223.5.5.5` follows `NETWORK,icmp,pc`, so a node with no IPv4 of its own still gets a real
-  IPv4 round trip - the peer emits the echo.
-- A flow the rules send to the node that asked is answered locally (`ping pc.lan` on the PC) or
-  handed to the DIRECT path (`ping 223.5.5.5` on the PC), never to a fake reply.
+- `ping pc.lan` sends the tool's own echo message to the address the directory publishes for the
+  peer. The peer's stack answers it, exactly as it would if both nodes shared a network. Nothing is
+  wrapped, re-addressed or re-typed, so the measured time is the path that was asked about.
+- `ping t.cn` resolves the name the fake address stands for and makes the echo from this node, with
+  the answer written back as the address that was pinged. Real latency, no fake reply.
+- An echo that cannot be put on the wire as it stands - the tool asked in IPv4 while the peer only
+  has an IPv6 address, or the rules sent the echo to a node that is not the target - is answered
+  with the ICMP error a router would send. `ping` prints `Destination host unreachable` instead of
+  waiting for an answer that can never come.
 
-Fake echoes remain only for flows no carrier claims, which is what every outbound but
-`tailnet-peer` is today.
+Nothing is invented: a target that stays silent, a peer that blocks ICMP from the outside, or a
+peer that is asleep all produce a timeout, because that is what happened.
 
 ## What is in the tree
 
@@ -23,106 +26,77 @@ Fake echoes remain only for flows no carrier claims, which is what every outboun
 | `C.ICMPProxy` (carrier contract) and `ICMPCarrierOf` | `constant/adapters.go` |
 | Rule lookup for a flow without a connection | `tunnel.MatchProxy` |
 | TUN side: intercept, match, carry, write the reply | `listener/sing_tun/icmp_proxy.go`, `prepare.go` |
-| Carrier: peer envelope over the inner proxy | `adapter/tailnet_peer_icmp.go`, `adapter/tailnet_peer.go` (`icmp-port`) |
-| Envelope, echo, reply building | `component/icmptunnel/` |
-| Responder inbound | `listener/inbound/icmp.go` (`type: icmp-responder`) |
+| Carrier: an echo sent to the peer's own address | `adapter/tailnet_peer_icmp.go` |
+| Echo, reply building, the error a router sends | `component/icmptunnel/`, `listener/sing_tun/icmp_proxy.go` |
 
 sing-tun hands every echo to `PrepareConnection` before anything else: a non-nil destination
 receives each packet whole and answers through the route context, and nil means the stack itself
 replies - which is where the fake echo comes from. That hook is what the feature uses.
 
-## The carried echo
-
-ICMP cannot ride the inner protocol (VLESS has no field for it), so the message travels as one UDP
-datagram through the tunnel:
-
-```
-magic(4) | version(1) | family(1) | target(4 or 16) | icmp message
-```
+## How an echo travels
 
 - The rules pick the outbound. A rule may name a group: the group's current selection is read
-  without touching it, and decorators around an outbound (the one that closes it when the config
-  is replaced) are looked through - they embed the adapter interface and hide everything else.
-- The envelope goes to the peer's **loopback** responder port (default `port + 1`), because what
-  the peer does with the tunnel's UDP is run it through its own rules: the destination is loopback,
-  so the profile's `IP-CIDR,127.0.0.0/8,DIRECT` rule hands it to the responder. The responder is
-  therefore never exposed to the internet, and the tunnel's own authentication still stands in
-  front of it.
-- The responder puts a real echo on the wire - `IcmpSendEcho2`/`Icmp6SendEcho2` on Windows, which
-  needs no administrator, and an unprivileged ICMP socket elsewhere - and answers with the reply
-  envelope. Nothing is invented: a target that stays silent produces a ping timeout.
-- A flow aimed at the peer itself carries the peer's loopback as the target, so the peer answers
-  as itself and the round trip is the tunnel. A flow that only carries a fake-ip placeholder names
-  a host, which is resolved to a real address of the message's family before the peer is asked.
+  without touching it, and decorators around an outbound (the one that closes it when the config is
+  replaced) are looked through - they embed the adapter interface and hide everything else.
+- `tailnet-peer` answers for its own name: the echo goes to the peer's published address with
+  `IcmpSendEcho`/`Icmp6SendEcho2` on Windows and an unprivileged ICMP socket elsewhere, so the
+  peer's kernel - not this node - produces the answer. `directEcho` never rewrites the message.
+- An outbound that cannot move an echo at all (every proxy protocol: they carry TCP and UDP
+  streams, not ICMP) leaves the flow on the path it would have had without this feature. A name is
+  resolved and answered for real by this node; a real address keeps sing-tun's DIRECT socket; the
+  TUN's own ranges keep the stack's reply.
+- The outbound that *is* this node says so (`icmptunnel.ErrLocalPath`) and the TUN side takes the
+  same direct path, because a real echo from here would enter these rules again.
+- An echo that cannot be delivered as it stands returns `icmptunnel.ErrUnreachable`, and the TUN
+  side writes the ICMP error a router would write (v4 type 3 code 1, v6 type 1 code 0) with the
+  original header and message quoted inside it.
 - The reply is written back as a whole IP packet with the addresses swapped and the checksums
   recomputed (ICMPv6's pseudo header included). Identifier, sequence and payload travel untouched,
   so the ping tool matches its own request.
 
-The outbound that *is* this node cannot carry the echo - a real echo from here would enter these
-rules again - so it says so (`icmptunnel.ErrLocalPath`) and the TUN side falls back to the path it
-uses when no outbound carries ICMP: sing-tun's own socket, bound to the interface the machine would
-use, which leaves without a second trip through the rules. A fake-ip destination is resolved first,
-so the fallback still measures the name that was pinged.
-
 ## Profile
-
-The responder is one listener, and the rule is one line:
 
 ```yaml
 rules:
-  - NETWORK,icmp,pc        # every echo the rules did not already place
-listeners:
-  - name: icmp-in
-    type: icmp-responder
-    listen: 127.0.0.1      # only the peer's own rule engine can reach it
-    port: 8444             # tailnet-peer's default icmp-port is the tunnel port + 1
+  - DOMAIN,pc.lan,pc       # a ping at the peer's name goes to the peer
 ```
 
-`NETWORK,icmp` sits after the LAN/CIDR DIRECT rules and before the domain and geo rules, so every
-ping that is not already placed goes through the carrier named there. Moving the line below
-`GEOIP,CN,DIRECT` keeps Chinese addresses pinged locally instead of through the peer.
+No listener is needed and no rule has to send every echo anywhere: an echo that is not aimed at a
+peer is answered on the node that sent it.
 
 ## Limits worth knowing
 
-- Echo request/reply only. Traceroute and ICMP errors (TTL exceeded, fragmentation needed) are a
-  later step: the envelope has a version byte for them.
-- Both ends must run a build with this feature. An older peer sees an unknown UDP service, and the
-  magic prefix makes that a clean "no answer" rather than a mis-parse.
-- If the inner proxy loses `udp: true` (or the protocol has no UDP), the datagram cannot be sent
-  and the ping fails; nothing falls back to a fake reply.
-- Confidentiality is whatever the tunnel gives: the envelope rides inside the same VLESS
-  Encryption stream, so an observer sees no more than for TCP payloads.
-- The measured round trip is the whole path, `phone -> peer -> target -> peer -> phone`, which is
-  the point.
-- A peer that is asleep cannot answer: Android in deep sleep drops the tunnel's TCP dial, and the
-  ping then reports a timeout - the honest answer for that path.
+- The echo is not wrapped, so a peer has to answer ICMP from the outside, the way any host on a
+  shared network does. A peer behind a carrier that blocks inbound ICMP (a phone on cellular, for
+  one) cannot be pinged; the ping times out, which is the truth about that path.
+- The tool's family has to match the peer's address family. `ping pc.lan` that resolves to an
+  IPv4 placeholder while the peer only has an IPv6 address gets a `host unreachable` error, not an
+  invented ICMPv6 echo; `ping -6 pc.lan` - or a DNS answer that offers only the peer's family - is
+  the pure pass-through.
+- Echo request/reply only. Traceroute and other ICMP errors are a later step.
+- A stock VPS exit cannot do this at all: a proxy protocol carries TCP and UDP streams, not ICMP,
+  and the server has no way to emit an echo for you. The client-only way to reach a stock server is
+  an L3 tunnel (WireGuard, OpenVPN) whose server's own stack answers.
+- No confidentiality is added: the echo is what the tool sent, on the wire.
 
-## Not built, and why
+## Leftovers
 
-- **A VLESS protocol extension** (a new command carrying the echo) - the UDP envelope needs no
-  protocol change, works with `udp: true` on any inner proxy, and cannot desynchronise a peer that
-  predates it.
-- **Other carriers** (`direct` as an explicit carrier, `wireguard`, `openvpn`, `masque`,
-  `zerotier`): every one of them is L3 with a device already, so each needs the echo written into
-  its device and the reply matched back. `C.ICMPProxy` is the place for them; none is required for
-  this deployment.
-- **A stock VPS exit.** Nothing there can emit ICMP and VLESS has no ICMP semantics to extend, so
-  the only ways out are running this build there too, or OpenVPN-over-TCP with the ICMP half
-  written on top of its TUN wiring (its outbound is TCP/UDP only today).
-- **Resolving `pc.lan` to the peer's real address instead of carrying the echo.** It works in
-  principle, but it makes every application's cached address load-bearing: for as long as a
-  resolver or an application keeps an address, a missing mapping sends that connection straight to
-  the peer, unencrypted, where the peer is not reachable that way.
+- `listener/inbound/icmp.go` (`type: icmp-responder`) and the envelope in
+  `component/icmptunnel/` are the remains of a carried-echo design that was removed: the client no
+  longer wraps anything. The inbound is kept so a profile that still configures it keeps loading,
+  and is not part of the shipping profile.
 
 ## Testing
 
 - `go test ./component/icmptunnel/` covers the envelope and a real echo to a public target.
 - `go test ./listener/inbound/ -run TestResponderAnswersWithARealEcho` starts a responder, sends
   an envelope over UDP and checks the reply that comes back.
-- `go test ./adapter/ -run TestTailnetPeer` covers the outbound as a config builds it (the
-  decorator included) and the target an echo is carried for.
+- `go test ./adapter/ -run "TestTailnetPeer|TestDirectEcho|TestEchoSpeaksFor"` covers the outbound
+  as a config builds it (the decorator included), the echo it sends to a peer, and the refusal of a
+  message whose family the peer does not speak.
 - `go test ./listener/sing_tun/` covers the TUN side: echo parsing, the swapped reply and both
-  checksums.
-- Manual, on Windows: `ping pc.lan` answers from the node itself (TTL 64, under a millisecond) and
-  `ping 223.5.5.5` reports the real round trip (TTL from the target), with
-  `[ICMP] ... using <outbound>` and the DIRECT fallback visible in the core log.
+  checksums, and the unreachable error that quotes the packet it could not deliver.
+- Manual, on Windows: `ping pc.lan` answers from the node itself (under a millisecond), `ping t.cn`
+  reports the real round trip through a name, and `ping localtest.lan` against an IPv6-only peer
+  prints `Destination host unreachable` - with `[ICMP] ... sent to <address> as it is` and
+  `answering unreachable` visible in the core log.
