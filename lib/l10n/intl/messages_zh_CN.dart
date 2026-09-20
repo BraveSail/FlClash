@@ -278,10 +278,6 @@ class MessageLookup extends MessageLookupByLibrary {
     "developerMode": MessageLookupByLibrary.simpleMessage("开发者模式"),
     "developerModeEnableTip": MessageLookupByLibrary.simpleMessage("开发者模式已启用。"),
     "direct": MessageLookupByLibrary.simpleMessage("直连"),
-    "directoryId": MessageLookupByLibrary.simpleMessage("节点名称（点对点目录）"),
-    "directoryIdTip": MessageLookupByLibrary.simpleMessage(
-      "只能使用字母、数字、点、横线和下划线，最多 63 个字符",
-    ),
     "disableUDP": MessageLookupByLibrary.simpleMessage("禁用UDP"),
     "disclaimer": MessageLookupByLibrary.simpleMessage("免责声明"),
     "disclaimerDesc": MessageLookupByLibrary.simpleMessage(

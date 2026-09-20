@@ -17,11 +17,11 @@ void main() {
       ],
     };
 
-    applyDirectoryId(rawConfig, ' gt7 ');
+    applyDirectoryId(rawConfig, ' a3f8b2c91d04 ');
 
     final proxies = rawConfig['proxies'] as List;
-    expect((proxies[0] as Map)['id'], 'gt7');
-    expect((proxies[1] as Map)['directory-id'], 'gt7');
+    expect((proxies[0] as Map)['id'], 'a3f8b2c91d04');
+    expect((proxies[1] as Map)['directory-id'], 'a3f8b2c91d04');
     expect((proxies[1] as Map).containsKey('id'), isFalse);
     expect((proxies[2] as Map).containsKey('directory-id'), isFalse);
   });
@@ -38,12 +38,17 @@ void main() {
       'proxies': <dynamic>[],
     };
 
-    applyDirectoryId(rawConfig, 'gt7');
+    applyDirectoryId(rawConfig, 'a3f8b2c91d04');
 
-    expect((rawConfig['mesh'] as Map)['directory-id'], 'gt7');
+    // One profile runs on every device: the id goes on the block, and the core
+    // hands it to every outbound it expands from there.
+    expect((rawConfig['mesh'] as Map)['directory-id'], 'a3f8b2c91d04');
+    // The names in the profile are the ones the dashboard aliases - nothing
+    // here tries to say which of them this device is.
+    expect((rawConfig['mesh'] as Map)['devices'], isA<List>());
   });
 
-  test('applyDirectoryId leaves the profile alone without a name', () {
+  test('applyDirectoryId leaves the profile alone without an id', () {
     final rawConfig = <String, dynamic>{
       'proxies': [
         {'name': 'peer-directory', 'type': 'peer-directory', 'id': 'shared'},
@@ -58,7 +63,7 @@ void main() {
   test('applyDirectoryId tolerates a profile without proxies', () {
     final rawConfig = <String, dynamic>{'rules': <String>[]};
 
-    applyDirectoryId(rawConfig, 'pc');
+    applyDirectoryId(rawConfig, 'a3f8b2c91d04');
 
     expect(rawConfig.keys, ['rules']);
   });

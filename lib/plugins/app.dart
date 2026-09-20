@@ -163,6 +163,22 @@ class App {
     return methodChannel.invokeMethod<bool>('openAppSettings');
   }
 
+  /// The device's ANDROID_ID: per app-signing key and device since Android 8,
+  /// so it survives updates and a reinstall; a factory reset makes a new one.
+  Future<String?> getAndroidId() async {
+    if (!Platform.isAndroid) return null;
+    try {
+      final id = await methodChannel.invokeMethod<String>('getAndroidId');
+      return (id == null || id.isEmpty) ? null : id;
+    } catch (error) {
+      commonPrint.log(
+        'Failed to read ANDROID_ID: ${compactError(error)}',
+        logLevel: LogLevel.warning,
+      );
+      return null;
+    }
+  }
+
   Future<bool> didCrashOnPreviousExecution() async {
     try {
       final value = await methodChannel

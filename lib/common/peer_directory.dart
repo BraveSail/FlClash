@@ -1,11 +1,13 @@
-/// Names this device in every peer-directory entry of [rawConfig].
+/// Writes the id this device computed into every peer-directory entry of
+/// [rawConfig].
 ///
 /// The directory has to know which node a report belongs to, while one profile
-/// is shared by every device, so the name comes from a local setting and is
-/// written into the generated config here: `id` for a `peer-directory`
-/// outbound, `directory-id` for a peer that carries the directory inline, and
-/// `directory-id` on the mesh block, whose per-device outbounds the core
-/// builds after this point.
+/// is shared by every device. The id comes from [deviceId] - the machine id
+/// the system carries, hashed - and is written into the generated config here:
+/// `id` for a `peer-directory` outbound, `directory-id` for a peer that
+/// carries the directory inline, and `directory-id` on the mesh block, whose
+/// per-device outbounds the core builds after this point. Names people read
+/// are set on the directory's dashboard.
 void applyDirectoryId(Map<String, dynamic> rawConfig, String id) {
   final trimmed = id.trim();
   if (trimmed.isEmpty) {

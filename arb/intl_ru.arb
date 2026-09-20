@@ -145,8 +145,6 @@
   "general": "Общие",
   "systemProxyDesc": "Настроить системный прокси",
   "userAgent": "User-Agent",
-  "directoryId": "Имя узла в каталоге пиров",
-  "directoryIdTip": "Только латинские буквы, цифры, точка, дефис и подчёркивание, до 63 символов",
   "unifiedDelay": "Единая задержка",
   "unifiedDelayDesc": "Убирает лишние задержки, например рукопожатие",
   "tcpConcurrent": "Параллельный TCP",

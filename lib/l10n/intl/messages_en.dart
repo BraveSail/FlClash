@@ -388,10 +388,6 @@ class MessageLookup extends MessageLookupByLibrary {
       "Developer mode is enabled.",
     ),
     "direct": MessageLookupByLibrary.simpleMessage("Direct"),
-    "directoryId": MessageLookupByLibrary.simpleMessage("Peer directory name"),
-    "directoryIdTip": MessageLookupByLibrary.simpleMessage(
-      "Use letters, digits, dot, dash or underscore, up to 63 characters",
-    ),
     "disableUDP": MessageLookupByLibrary.simpleMessage("Disable UDP"),
     "disclaimer": MessageLookupByLibrary.simpleMessage("Disclaimer"),
     "disclaimerDesc": MessageLookupByLibrary.simpleMessage(

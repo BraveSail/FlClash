@@ -396,12 +396,6 @@ class MessageLookup extends MessageLookupByLibrary {
       "Режим разработчика включён.",
     ),
     "direct": MessageLookupByLibrary.simpleMessage("Прямой"),
-    "directoryId": MessageLookupByLibrary.simpleMessage(
-      "Имя узла в каталоге пиров",
-    ),
-    "directoryIdTip": MessageLookupByLibrary.simpleMessage(
-      "Только латинские буквы, цифры, точка, дефис и подчёркивание, до 63 символов",
-    ),
     "disableUDP": MessageLookupByLibrary.simpleMessage("Отключить UDP"),
     "disclaimer": MessageLookupByLibrary.simpleMessage(
       "Отказ от ответственности",

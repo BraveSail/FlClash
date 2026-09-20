@@ -1145,25 +1145,6 @@ class AppLocalizations {
     return Intl.message('User-Agent', name: 'userAgent', desc: '', args: []);
   }
 
-  /// `Peer directory name`
-  String get directoryId {
-    return Intl.message(
-      'Peer directory name',
-      name: 'directoryId',
-      desc: '',
-      args: [],
-    );
-  }
-
-  /// `Use letters, digits, dot, dash or underscore, up to 63 characters`
-  String get directoryIdTip {
-    return Intl.message(
-      'Use letters, digits, dot, dash or underscore, up to 63 characters',
-      name: 'directoryIdTip',
-      desc: '',
-      args: [],
-    );
-  }
 
   /// `Unified delay`
   String get unifiedDelay {
