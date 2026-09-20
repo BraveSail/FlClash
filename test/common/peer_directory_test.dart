@@ -26,6 +26,23 @@ void main() {
     expect((proxies[2] as Map).containsKey('directory-id'), isFalse);
   });
 
+  test('applyDirectoryId names the mesh block this device runs', () {
+    final rawConfig = <String, dynamic>{
+      'mesh': {
+        'directory-url': 'https://directory.example',
+        'devices': [
+          {'name': 'pc'},
+          {'name': 'gt7'},
+        ],
+      },
+      'proxies': <dynamic>[],
+    };
+
+    applyDirectoryId(rawConfig, 'gt7');
+
+    expect((rawConfig['mesh'] as Map)['directory-id'], 'gt7');
+  });
+
   test('applyDirectoryId leaves the profile alone without a name', () {
     final rawConfig = <String, dynamic>{
       'proxies': [
