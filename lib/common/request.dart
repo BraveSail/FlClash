@@ -109,6 +109,32 @@ class Request {
     }
   }
 
+  /// Reads the device list from the hub. Null means the list could not be
+  /// read: the caller then leaves the mesh block unresolved rather than
+  /// freezing an empty one, so the core keeps reading it itself when it can.
+  Future<List<HubDevice>?> getHubDevices(String hubUrl, String hubToken) async {
+    final url = hubDevicesUrl(hubUrl);
+    if (url.isEmpty) {
+      return null;
+    }
+    try {
+      final response = await _clashDio.get<Map<String, dynamic>>(
+        url,
+        options: Options(
+          responseType: ResponseType.json,
+          headers: hubAuthHeaders(hubToken),
+        ),
+      );
+      return parseHubDevices(response.data);
+    } catch (e) {
+      commonPrint.log(
+        'getHubDevices error ${compactError(e)}',
+        logLevel: LogLevel.warning,
+      );
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>?> checkForUpdate() async {
     try {
       final response = await dio.get(
