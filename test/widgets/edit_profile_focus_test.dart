@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 class _FakePathProvider extends PathProviderPlatform {
   final String root;
@@ -38,11 +39,31 @@ class _NoopSetupAction extends SetupAction {
 Profile _urlProfile() =>
     Profile.normal(label: 'test', url: 'https://example.com/sub');
 
+Profile _hubProfile() =>
+    Profile.normal(label: 'hub', url: 'https://hub.example/profile?id=abc');
+
+Future<FocusNode> pumpHubEditProfile(
+  WidgetTester tester, {
+  required Profile profile,
+}) => pumpEditProfile(
+  tester,
+  profile: profile,
+  overrides: [
+    appSettingProvider.overrideWithBuild(
+      (_, _) => const AppSettingProps(
+        hubUrl: 'https://hub.example',
+        hubToken: 'secret',
+      ),
+    ),
+  ],
+);
+
 /// Pumps [EditProfileView] inside a page route (as `showExtend` does), with an
 /// outside focus node so escape behavior can be asserted.
 Future<FocusNode> pumpEditProfile(
   WidgetTester tester, {
   Profile? profile,
+  List<Override> overrides = const [],
 }) async {
   tester.view.physicalSize = const Size(900, 800);
   tester.view.devicePixelRatio = 1;
@@ -50,7 +71,10 @@ Future<FocusNode> pumpEditProfile(
   addTearDown(tester.view.resetDevicePixelRatio);
 
   final container = ProviderContainer(
-    overrides: [setupActionProvider.overrideWith(() => _NoopSetupAction())],
+    overrides: [
+      setupActionProvider.overrideWith(() => _NoopSetupAction()),
+      ...overrides,
+    ],
   );
   addTearDown(container.dispose);
   // Unmount the widget tree before the container is disposed so State.dispose
@@ -123,6 +147,21 @@ bool _isTextFieldFocused() {
   return context?.findAncestorWidgetOfExactType<EditableText>() != null;
 }
 
+/// The flag lands on the inner [TextField], and the label is what picks the
+/// URL field out from the name field above it.
+bool _urlFieldIsReadOnly(WidgetTester tester) {
+  final field = tester.widget<TextField>(
+    find.descendant(
+      of: find.ancestor(
+        of: find.text(currentAppLocalizations.url),
+        matching: find.byType(TextFormField),
+      ),
+      matching: find.byType(TextField),
+    ),
+  );
+  return field.readOnly;
+}
+
 void main() {
   late Directory tempDir;
 
@@ -148,5 +187,33 @@ void main() {
 
     expect(_isTextFieldFocused(), isTrue);
     expect(_isFabFocused(), isFalse);
+  });
+
+  testWidgets('the address of a hub-managed profile cannot be edited', (
+    tester,
+  ) async {
+    await pumpHubEditProfile(tester, profile: _hubProfile());
+
+    expect(_urlFieldIsReadOnly(tester), isTrue);
+    expect(
+      find.textContaining('https://hub.example/profile?id=abc'),
+      findsWidgets,
+    );
+    expect(find.text(currentAppLocalizations.hubUrlManagedTip), findsOneWidget);
+  });
+
+  testWidgets('an address of any other profile stays editable', (tester) async {
+    await pumpHubEditProfile(tester, profile: _urlProfile());
+
+    expect(_urlFieldIsReadOnly(tester), isFalse);
+    expect(find.text(currentAppLocalizations.hubUrlManagedTip), findsNothing);
+  });
+
+  testWidgets('a hub profile is editable where the hub is not configured', (
+    tester,
+  ) async {
+    await pumpEditProfile(tester, profile: _hubProfile());
+
+    expect(_urlFieldIsReadOnly(tester), isFalse);
   });
 }

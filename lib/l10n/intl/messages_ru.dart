@@ -552,6 +552,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "hubUrlDesc": MessageLookupByLibrary.simpleMessage(
       "Получать профиль этого устройства из Hub",
     ),
+    "hubUrlManagedTip": MessageLookupByLibrary.simpleMessage(
+      "Управляется Hub - адрес нельзя изменить",
+    ),
     "hubViaProxy": MessageLookupByLibrary.simpleMessage(
       "Подключаться к Hub через прокси",
     ),
@@ -593,9 +596,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "inputRuleContent": MessageLookupByLibrary.simpleMessage(
       "Введите содержимое правила",
     ),
-    "installedAppsPermissionDeniedMessage": MessageLookupByLibrary.simpleMessage(
-      "Разрешение на список приложений отклонено, поэтому установленные приложения недоступны. Предоставьте его вручную в системных настройках.",
-    ),
+    "installedAppsPermissionDeniedMessage":
+        MessageLookupByLibrary.simpleMessage(
+          "Разрешение на список приложений отклонено, поэтому установленные приложения недоступны. Предоставьте его вручную в системных настройках.",
+        ),
     "installedAppsPermissionDesc": MessageLookupByLibrary.simpleMessage(
       "Эта система не выдаёт список установленных приложений без разрешения. Предоставьте его, чтобы настроить прокси для отдельных приложений.",
     ),

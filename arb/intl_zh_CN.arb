@@ -629,5 +629,6 @@
   "hubProfileMissing": "Hub 上还没有这台设备的配置",
   "hubUrlDesc": "从 Hub 获取本机配置",
   "hubTokenDesc": "向 Hub 请求配置时作为 Bearer token 发送",
-  "hubImportDisabledTip": "已启用 Hub 配置,其他导入方式已禁用"
+  "hubImportDisabledTip": "已启用 Hub 配置,其他导入方式已禁用",
+  "hubUrlManagedTip": "配置由 Hub 管理,地址不可修改"
 }

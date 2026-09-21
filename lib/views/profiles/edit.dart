@@ -8,6 +8,7 @@ import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/pages/editor.dart';
 import 'package:fl_clash/providers/action.dart';
+import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/providers/core.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/widgets/widgets.dart';
@@ -229,10 +230,20 @@ class _EditProfileViewState extends ConsumerState<EditProfileView> {
   @override
   Widget build(BuildContext context) {
     final appLocalizations = context.appLocalizations;
+    // The hub hands this device its profile and keeps it current; the address
+    // is the hub's own name for the device, so editing it here would only
+    // point the profile at something that is not there.
+    final hubManaged = ref.watch(
+      appSettingProvider.select(
+        (state) =>
+            isHubEnabled(state.hubUrl, state.hubToken) &&
+            isHubUrl(widget.profile.url, state.hubUrl),
+      ),
+    );
     final items = <Widget>[
       _ProfileNameField(controller: _labelController),
       if (widget.profile.type == ProfileType.url) ...[
-        _ProfileUrlField(controller: _urlController),
+        _ProfileUrlField(controller: _urlController, readOnly: hubManaged),
         ListItem.toggle(
           title: Text(appLocalizations.autoUpdate),
           value: _autoUpdate,
@@ -319,18 +330,24 @@ class _ProfileNameField extends StatelessWidget {
 }
 
 class _ProfileUrlField extends StatelessWidget {
-  const _ProfileUrlField({required this.controller});
+  const _ProfileUrlField({required this.controller, this.readOnly = false});
 
   final TextEditingController controller;
+
+  /// Set when the hub owns this profile: the address it hands out names the
+  /// device on the hub, so the field shows it but does not take edits.
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
     final appLocalizations = context.appLocalizations;
     return ListItem(
+      subtitle: readOnly ? Text(appLocalizations.hubUrlManagedTip) : null,
       title: TextFormField(
         textInputAction: TextInputAction.next,
         keyboardType: TextInputType.url,
         controller: controller,
+        readOnly: readOnly,
         inputFormatters: TextInputLimits.limit(TextInputLimits.url),
         maxLines: 5,
         minLines: 1,

@@ -440,6 +440,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "hubUrl": MessageLookupByLibrary.simpleMessage("Hub アドレス"),
     "hubUrlDesc": MessageLookupByLibrary.simpleMessage("Hub からこの端末のプロファイルを取得"),
+    "hubUrlManagedTip": MessageLookupByLibrary.simpleMessage(
+      "Hub で管理中 - アドレスは変更できません",
+    ),
     "hubViaProxy": MessageLookupByLibrary.simpleMessage("プロキシ経由で Hub に接続"),
     "hubViaProxyDesc": MessageLookupByLibrary.simpleMessage(
       "有効: 現在のプロキシ経由で Hub に接続。無効: 独自に直接接続",

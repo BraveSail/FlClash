@@ -629,5 +629,6 @@
   "hubProfileMissing": "Hub にこの端末のプロファイルがまだありません",
   "hubUrlDesc": "Hub からこの端末のプロファイルを取得",
   "hubTokenDesc": "Hub にプロファイルを要求するとき Bearer トークンとして送信",
-  "hubImportDisabledTip": "Hub 構成が有効なため、他のインポート方法は無効です"
+  "hubImportDisabledTip": "Hub 構成が有効なため、他のインポート方法は無効です",
+  "hubUrlManagedTip": "Hub で管理中 - アドレスは変更できません"
 }

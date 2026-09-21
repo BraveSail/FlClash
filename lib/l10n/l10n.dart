@@ -5214,6 +5214,16 @@ class AppLocalizations {
       args: [],
     );
   }
+
+  /// `Managed by the Hub - the address cannot be edited`
+  String get hubUrlManagedTip {
+    return Intl.message(
+      'Managed by the Hub - the address cannot be edited',
+      name: 'hubUrlManagedTip',
+      desc: '',
+      args: [],
+    );
+  }
 }
 
 class AppLocalizationDelegate extends LocalizationsDelegate<AppLocalizations> {

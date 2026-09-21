@@ -538,6 +538,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "hubUrlDesc": MessageLookupByLibrary.simpleMessage(
       "Fetch this device profile from the Hub",
     ),
+    "hubUrlManagedTip": MessageLookupByLibrary.simpleMessage(
+      "Managed by the Hub - the address cannot be edited",
+    ),
     "hubViaProxy": MessageLookupByLibrary.simpleMessage(
       "Connect to Hub through the proxy",
     ),
@@ -579,9 +582,10 @@ class MessageLookup extends MessageLookupByLibrary {
     "inputRuleContent": MessageLookupByLibrary.simpleMessage(
       "Enter the rule content",
     ),
-    "installedAppsPermissionDeniedMessage": MessageLookupByLibrary.simpleMessage(
-      "The app list permission was denied, so installed apps cannot be listed. Please grant it manually in system settings.",
-    ),
+    "installedAppsPermissionDeniedMessage":
+        MessageLookupByLibrary.simpleMessage(
+          "The app list permission was denied, so installed apps cannot be listed. Please grant it manually in system settings.",
+        ),
     "installedAppsPermissionDesc": MessageLookupByLibrary.simpleMessage(
       "This system hides the installed app list until the permission is granted. Authorize it to configure the per-app proxy.",
     ),

@@ -390,6 +390,9 @@ class MessageLookup extends MessageLookupByLibrary {
     ),
     "hubUrl": MessageLookupByLibrary.simpleMessage("Hub 地址"),
     "hubUrlDesc": MessageLookupByLibrary.simpleMessage("从 Hub 获取本机配置"),
+    "hubUrlManagedTip": MessageLookupByLibrary.simpleMessage(
+      "配置由 Hub 管理,地址不可修改",
+    ),
     "hubViaProxy": MessageLookupByLibrary.simpleMessage("通过代理连接 Hub"),
     "hubViaProxyDesc": MessageLookupByLibrary.simpleMessage(
       "开启时经当前代理访问 Hub;关闭时自行直连",
