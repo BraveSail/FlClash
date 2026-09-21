@@ -58,7 +58,7 @@ class HubTokenItem extends ConsumerWidget {
     return ListItem(
       leading: const Icon(Icons.key_outlined),
       title: Text(appLocalizations.hubToken),
-      subtitle: Text(hubToken.takeFirstValid([appLocalizations.none])),
+      subtitle: Text(hubToken.obscured.takeFirstValid([appLocalizations.none])),
       onTap: () => _handleShowTokenDialog(context, ref),
     );
   }

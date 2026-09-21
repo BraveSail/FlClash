@@ -210,4 +210,24 @@ void main() {
       expect(result, [1, 2, 3]);
     });
   });
+
+  group('StringExtension.obscured', () {
+    test('keeps enough of the ends to recognise the secret', () {
+      const token = 'aaaa1111bbbb2222cccc3333dddd4444eeee5555';
+      final obscured = token.obscured;
+      expect(obscured.startsWith('aaaa'), isTrue);
+      expect(obscured.endsWith('5555'), isTrue);
+      expect(obscured.contains('1111bbbb'), isFalse);
+      expect(obscured.length, token.length);
+    });
+
+    test('hides a short secret whole', () {
+      expect('secret'.obscured, '\u2022' * 6);
+      expect('12345678'.obscured, '\u2022' * 8);
+    });
+
+    test('leaves a secret that cannot be hidden empty', () {
+      expect(''.obscured, isEmpty);
+    });
+  });
 }

@@ -39,6 +39,16 @@ extension StringExtension on String {
     return substring(safeStart, safeEnd);
   }
 
+  /// A secret shown where it can be read over a shoulder: enough of the ends
+  /// to recognise which secret it is, and no more. Anything short stays fully
+  /// hidden - a handful of dots would otherwise spell the secret out.
+  String get obscured {
+    if (length <= 8) {
+      return '\u2022' * length;
+    }
+    return '${substring(0, 4)}${'\u2022' * (length - 8)}${substring(length - 4)}';
+  }
+
   List<int> get encodeUtf16LeWithBom {
     final byteData = ByteData(length * 2);
     final bom = [0xFF, 0xFE];
