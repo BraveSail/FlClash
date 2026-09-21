@@ -1,21 +1,24 @@
-/// Writes the id this device computed into every peer-directory entry of
-/// [rawConfig].
-///
-/// The directory has to know which node a report belongs to, while one profile
-/// is shared by every device. The id comes from [deviceId] - the machine id
-/// the system carries, hashed - and is written into the generated config here:
-/// `id` for a `peer-directory` outbound, `directory-id` for a peer that
-/// carries the directory inline, and `directory-id` on the mesh block, whose
-/// per-device outbounds the core builds after this point. Names people read
-/// are set on the directory's dashboard.
-void applyDirectoryId(Map<String, dynamic> rawConfig, String id) {
+void applyDirectoryId(
+  Map<String, dynamic> rawConfig,
+  String id, {
+  String name = '',
+  String os = '',
+}) {
   final trimmed = id.trim();
   if (trimmed.isEmpty) {
     return;
   }
+  final deviceName = name.trim();
+  final deviceOs = os.trim();
   final mesh = rawConfig['mesh'];
   if (mesh is Map) {
     mesh['directory-id'] = trimmed;
+    if (deviceName.isNotEmpty) {
+      mesh['device-name'] = deviceName;
+    }
+    if (deviceOs.isNotEmpty) {
+      mesh['device-os'] = deviceOs;
+    }
   }
   final proxies = rawConfig['proxies'];
   if (proxies is! List) {
@@ -28,10 +31,21 @@ void applyDirectoryId(Map<String, dynamic> rawConfig, String id) {
     switch (proxy['type']) {
       case 'peer-directory':
         proxy['id'] = trimmed;
+        _applyDeviceIdentity(proxy, deviceName, deviceOs);
       case 'tailnet-peer':
         if (proxy['directory-url'] != null) {
           proxy['directory-id'] = trimmed;
+          _applyDeviceIdentity(proxy, deviceName, deviceOs);
         }
     }
+  }
+}
+
+void _applyDeviceIdentity(Map proxy, String name, String os) {
+  if (name.isNotEmpty) {
+    proxy['hostname'] = name;
+  }
+  if (os.isNotEmpty) {
+    proxy['os'] = os;
   }
 }

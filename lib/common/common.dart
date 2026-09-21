@@ -8,6 +8,7 @@ export 'context.dart';
 export 'converter.dart';
 export 'datetime.dart';
 export 'device_id.dart';
+export 'device_name.dart';
 export 'dialog.dart';
 export 'exception.dart';
 export 'file.dart';

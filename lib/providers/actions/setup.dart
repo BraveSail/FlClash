@@ -414,7 +414,12 @@ class SetupAction extends _$SetupAction {
     if (scriptContent?.isNotEmpty == true) {
       rawConfig = await handleEvaluate(scriptContent!, rawConfig);
     }
-    applyDirectoryId(rawConfig, await deviceId());
+    applyDirectoryId(
+      rawConfig,
+      await deviceId(),
+      name: await hubDeviceName(),
+      os: await hubDeviceOs(),
+    );
     final hubSetting = ref.read(
       appSettingProvider.select(
         (state) => (state.hubUrl, state.hubToken, state.hubViaProxy),

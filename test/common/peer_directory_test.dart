@@ -48,6 +48,55 @@ void main() {
     expect((rawConfig['mesh'] as Map)['devices'], isA<List>());
   });
 
+  test('applyDirectoryId carries the name and system to every entry', () {
+    final rawConfig = <String, dynamic>{
+      'mesh': {'directory-url': 'https://directory.example'},
+      'proxies': [
+        {'name': 'peer-directory', 'type': 'peer-directory', 'id': 'shared'},
+        {
+          'name': 'pc',
+          'type': 'tailnet-peer',
+          'peer': 'pc',
+          'directory-url': 'https://directory.example',
+        },
+        {'name': 'plain', 'type': 'tailnet-peer', 'peer': 'plain'},
+      ],
+    };
+
+    applyDirectoryId(
+      rawConfig,
+      'a3f8b2c91d04',
+      name: ' 小明的手机 ',
+      os: 'Android 14',
+    );
+
+    final mesh = rawConfig['mesh'] as Map;
+    expect(mesh['device-name'], '小明的手机');
+    expect(mesh['device-os'], 'Android 14');
+    final proxies = rawConfig['proxies'] as List;
+    // The entries that report this device carry it; one that reports nothing
+    // (no directory of its own) is not given anything to say.
+    expect((proxies[0] as Map)['hostname'], '小明的手机');
+    expect((proxies[0] as Map)['os'], 'Android 14');
+    expect((proxies[1] as Map)['hostname'], '小明的手机');
+    expect((proxies[1] as Map)['os'], 'Android 14');
+    expect((proxies[2] as Map).containsKey('hostname'), isFalse);
+    expect((proxies[2] as Map).containsKey('os'), isFalse);
+  });
+
+  test('applyDirectoryId sends nothing about a device that read nothing', () {
+    final rawConfig = <String, dynamic>{
+      'mesh': {'directory-url': 'https://directory.example'},
+      'proxies': <dynamic>[],
+    };
+
+    applyDirectoryId(rawConfig, 'a3f8b2c91d04');
+
+    final mesh = rawConfig['mesh'] as Map;
+    expect(mesh.containsKey('device-name'), isFalse);
+    expect(mesh.containsKey('device-os'), isFalse);
+  });
+
   test('applyDirectoryId leaves the profile alone without an id', () {
     final rawConfig = <String, dynamic>{
       'proxies': [
