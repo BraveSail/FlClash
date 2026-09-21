@@ -370,6 +370,30 @@ class MessageLookup extends MessageLookupByLibrary {
     "hours": MessageLookupByLibrary.simpleMessage("小时"),
     "hoursAgo": m12,
     "hoursCount": m13,
+    "hub": MessageLookupByLibrary.simpleMessage("Hub 配置"),
+    "hubDeviceIdTip": MessageLookupByLibrary.simpleMessage(
+      "无法计算本机设备 id,不能向 Hub 获取配置",
+    ),
+    "hubImportDisabledTip": MessageLookupByLibrary.simpleMessage(
+      "已启用 Hub 配置,其他导入方式已禁用",
+    ),
+    "hubManagedTip": MessageLookupByLibrary.simpleMessage(
+      "配置由 Hub 管理,其他导入方式已禁用",
+    ),
+    "hubProfile": MessageLookupByLibrary.simpleMessage("Hub 配置"),
+    "hubProfileMissing": MessageLookupByLibrary.simpleMessage(
+      "Hub 上还没有这台设备的配置",
+    ),
+    "hubToken": MessageLookupByLibrary.simpleMessage("Hub Token"),
+    "hubTokenDesc": MessageLookupByLibrary.simpleMessage(
+      "向 Hub 请求配置时作为 Bearer token 发送",
+    ),
+    "hubUrl": MessageLookupByLibrary.simpleMessage("Hub 地址"),
+    "hubUrlDesc": MessageLookupByLibrary.simpleMessage("从 Hub 获取本机配置"),
+    "hubViaProxy": MessageLookupByLibrary.simpleMessage("通过代理连接 Hub"),
+    "hubViaProxyDesc": MessageLookupByLibrary.simpleMessage(
+      "开启时经当前代理访问 Hub;关闭时自行直连",
+    ),
     "icon": MessageLookupByLibrary.simpleMessage("图片"),
     "iconRecords": MessageLookupByLibrary.simpleMessage("图标记录"),
     "iconStyle": MessageLookupByLibrary.simpleMessage("图标样式"),

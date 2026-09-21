@@ -1,8 +1,9 @@
 import 'dart:async';
 
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/pages/scan.dart';
-import 'package:fl_clash/providers/action.dart';
+import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,10 +14,28 @@ class AddProfileView extends ConsumerWidget {
   const AddProfileView({super.key, required this.context});
 
   Future<void> _handleAddProfileFormFile(WidgetRef ref) async {
+    if (_isHubManaged(ref)) {
+      return;
+    }
     unawaited(ref.read(profilesActionProvider.notifier).addProfileFormFile());
   }
 
+  bool _isHubManaged(WidgetRef ref) {
+    final setting = ref.read(appSettingProvider);
+    final hubEnable = isHubEnabled(setting.hubUrl, setting.hubToken);
+    if (hubEnable) {
+      dialogs.showNotifier(
+        currentAppLocalizations.hubImportDisabledTip,
+        level: MessageLevel.warning,
+      );
+    }
+    return hubEnable;
+  }
+
   Future<void> _toScan(WidgetRef ref) async {
+    if (_isHubManaged(ref)) {
+      return;
+    }
     final profilesAction = ref.read(profilesActionProvider.notifier);
     if (system.isDesktop) {
       unawaited(profilesAction.addProfileFormQrCode());
@@ -31,6 +50,9 @@ class AddProfileView extends ConsumerWidget {
   }
 
   Future<void> _toAdd(WidgetRef ref) async {
+    if (_isHubManaged(ref)) {
+      return;
+    }
     final profilesAction = ref.read(profilesActionProvider.notifier);
     final appLocalizations = context.appLocalizations;
     final url = await dialogs.showCommonDialog<String>(
@@ -59,25 +81,43 @@ class AddProfileView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appLocalizations = context.appLocalizations;
+    final hubEnable = ref.watch(
+      appSettingProvider.select(
+        (state) => isHubEnabled(state.hubUrl, state.hubToken),
+      ),
+    );
     return ListView(
       children: [
-        ListItem(
-          leading: const Icon(Icons.qr_code_sharp),
-          title: Text(appLocalizations.qrcode),
-          subtitle: Text(appLocalizations.qrcodeDesc),
-          onTap: () => _toScan(ref),
-        ),
-        ListItem(
-          leading: const Icon(Icons.upload_file_sharp),
-          title: Text(appLocalizations.file),
-          subtitle: Text(appLocalizations.fileDesc),
-          onTap: () => _handleAddProfileFormFile(ref),
-        ),
-        ListItem(
-          leading: const Icon(Icons.cloud_download_sharp),
-          title: Text(appLocalizations.url),
-          subtitle: Text(appLocalizations.urlDesc),
-          onTap: () => _toAdd(ref),
+        if (hubEnable)
+          ListItem(
+            leading: const Icon(Icons.cloud_done_outlined),
+            title: Text(appLocalizations.hub),
+            subtitle: Text(appLocalizations.hubManagedTip),
+          ),
+        DisabledMask(
+          status: hubEnable,
+          child: Column(
+            children: [
+              ListItem(
+                leading: const Icon(Icons.qr_code_sharp),
+                title: Text(appLocalizations.qrcode),
+                subtitle: Text(appLocalizations.qrcodeDesc),
+                onTap: () => _toScan(ref),
+              ),
+              ListItem(
+                leading: const Icon(Icons.upload_file_sharp),
+                title: Text(appLocalizations.file),
+                subtitle: Text(appLocalizations.fileDesc),
+                onTap: () => _handleAddProfileFormFile(ref),
+              ),
+              ListItem(
+                leading: const Icon(Icons.cloud_download_sharp),
+                title: Text(appLocalizations.url),
+                subtitle: Text(appLocalizations.urlDesc),
+                onTap: () => _toAdd(ref),
+              ),
+            ],
+          ),
         ),
       ],
     );

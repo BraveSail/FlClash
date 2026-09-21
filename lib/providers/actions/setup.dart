@@ -352,6 +352,10 @@ class SetupAction extends _$SetupAction {
       rawConfig = await handleEvaluate(scriptContent!, rawConfig);
     }
     applyDirectoryId(rawConfig, await deviceId());
+    final hubSetting = ref.read(
+      appSettingProvider.select((state) => (state.hubUrl, state.hubToken)),
+    );
+    applyHubConnection(rawConfig, hubSetting.$1, hubSetting.$2);
     final directory = await appPath.profilesPath;
     final res = makeRealProfileTask(
       MakeRealProfileState(

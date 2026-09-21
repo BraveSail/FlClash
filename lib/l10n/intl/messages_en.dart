@@ -516,6 +516,34 @@ class MessageLookup extends MessageLookupByLibrary {
     "hours": MessageLookupByLibrary.simpleMessage("hours"),
     "hoursAgo": m12,
     "hoursCount": m13,
+    "hub": MessageLookupByLibrary.simpleMessage("Hub"),
+    "hubDeviceIdTip": MessageLookupByLibrary.simpleMessage(
+      "This device could not compute its id, so the Hub cannot be asked for a profile",
+    ),
+    "hubImportDisabledTip": MessageLookupByLibrary.simpleMessage(
+      "Hub config is enabled, other import methods are disabled",
+    ),
+    "hubManagedTip": MessageLookupByLibrary.simpleMessage(
+      "Managed by the Hub - other import methods are disabled",
+    ),
+    "hubProfile": MessageLookupByLibrary.simpleMessage("Hub profile"),
+    "hubProfileMissing": MessageLookupByLibrary.simpleMessage(
+      "The Hub has no profile for this device yet",
+    ),
+    "hubToken": MessageLookupByLibrary.simpleMessage("Hub token"),
+    "hubTokenDesc": MessageLookupByLibrary.simpleMessage(
+      "Sent as a bearer token when asking the Hub for the profile",
+    ),
+    "hubUrl": MessageLookupByLibrary.simpleMessage("Hub address"),
+    "hubUrlDesc": MessageLookupByLibrary.simpleMessage(
+      "Fetch this device profile from the Hub",
+    ),
+    "hubViaProxy": MessageLookupByLibrary.simpleMessage(
+      "Connect to Hub through the proxy",
+    ),
+    "hubViaProxyDesc": MessageLookupByLibrary.simpleMessage(
+      "On: the Hub is reached over the current proxy. Off: a direct connection of its own",
+    ),
     "icon": MessageLookupByLibrary.simpleMessage("Icon"),
     "iconRecords": MessageLookupByLibrary.simpleMessage("Icon records"),
     "iconStyle": MessageLookupByLibrary.simpleMessage("Icon style"),
@@ -551,10 +579,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "inputRuleContent": MessageLookupByLibrary.simpleMessage(
       "Enter the rule content",
     ),
-    "installedAppsPermissionDeniedMessage":
-        MessageLookupByLibrary.simpleMessage(
-          "The app list permission was denied, so installed apps cannot be listed. Please grant it manually in system settings.",
-        ),
+    "installedAppsPermissionDeniedMessage": MessageLookupByLibrary.simpleMessage(
+      "The app list permission was denied, so installed apps cannot be listed. Please grant it manually in system settings.",
+    ),
     "installedAppsPermissionDesc": MessageLookupByLibrary.simpleMessage(
       "This system hides the installed app list until the permission is granted. Authorize it to configure the per-app proxy.",
     ),

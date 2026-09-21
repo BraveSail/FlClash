@@ -84,6 +84,7 @@ class ApplicationState extends ConsumerState<Application> {
         exit(0);
       }
       _autoUpdateProfilesTask();
+      _initHubTask();
       _initLink();
       unawaited(app?.initShortcuts());
     });
@@ -126,6 +127,10 @@ class ApplicationState extends ConsumerState<Application> {
       }
       _autoUpdateProfilesTask();
     });
+  }
+
+  void _initHubTask() {
+    unawaited(ref.read(profilesActionProvider.notifier).syncHubProfile());
   }
 
   Future<void> _handleConnectivityChanged(

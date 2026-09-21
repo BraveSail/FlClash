@@ -40,6 +40,9 @@ _AppSettingProps _$AppSettingPropsFromJson(Map<String, dynamic> json) =>
       checkCertificate: json['checkCertificate'] as bool? ?? true,
       customUserAgent: json['customUserAgent'] as String? ?? '',
       directoryId: json['directoryId'] as String? ?? '',
+      hubUrl: json['hubUrl'] as String? ?? '',
+      hubToken: json['hubToken'] as String? ?? '',
+      hubViaProxy: json['hubViaProxy'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$AppSettingPropsToJson(_AppSettingProps instance) =>
@@ -70,6 +73,9 @@ Map<String, dynamic> _$AppSettingPropsToJson(_AppSettingProps instance) =>
       'checkCertificate': instance.checkCertificate,
       'customUserAgent': instance.customUserAgent,
       'directoryId': instance.directoryId,
+      'hubUrl': instance.hubUrl,
+      'hubToken': instance.hubToken,
+      'hubViaProxy': instance.hubViaProxy,
     };
 
 const _$RestoreStrategyEnumMap = {

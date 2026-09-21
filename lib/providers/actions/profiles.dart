@@ -40,8 +40,12 @@ class ProfilesAction extends _$ProfilesAction {
   }
 
   Future<void> autoUpdateProfiles() async {
+    final setting = ref.read(appSettingProvider);
     for (final profile in ref.read(profilesProvider)) {
       if (!profile.autoUpdate) continue;
+      if (isHubUrl(profile.url, setting.hubUrl)) {
+        continue;
+      }
       final isNotNeedUpdate = profile.lastUpdateDate
           ?.add(profile.autoUpdateDuration)
           .isBeforeNow;
@@ -53,6 +57,96 @@ class ProfilesAction extends _$ProfilesAction {
       } catch (e) {
         commonPrint.log(compactError(e), logLevel: LogLevel.warning);
       }
+    }
+    await syncHubProfile();
+  }
+
+  bool get _isHubEnable {
+    final setting = ref.read(appSettingProvider);
+    return isHubEnabled(setting.hubUrl, setting.hubToken);
+  }
+
+  /// Deep links and the album scanner reach the import actions without
+  /// passing through the sheet that greys them out, so the gate lives here.
+  bool _isHubManaged() {
+    if (!_isHubEnable) {
+      return false;
+    }
+    dialogs.showNotifier(
+      currentAppLocalizations.hubImportDisabledTip,
+      level: MessageLevel.warning,
+    );
+    return true;
+  }
+
+  bool _isSyncingHub = false;
+
+  /// Pulls this device's profile from the Hub and puts it in use, stored as a
+  /// normal URL profile so the regular update loop keeps refreshing it.
+  Future<void> syncHubProfile({
+    bool silence = true,
+    bool notifyMissing = false,
+  }) async {
+    if (!_isHubEnable || _isSyncingHub) {
+      return;
+    }
+    _isSyncingHub = true;
+    try {
+      final profile = await globalState.loadingRun(
+        tag: silence ? null : LoadingTag.profiles,
+        () => _fetchHubProfile(notifyMissing: notifyMissing),
+        title: currentAppLocalizations.sync,
+        silence: silence,
+      );
+      if (profile == null) {
+        return;
+      }
+      ref.read(profilesProvider.notifier).put(profile);
+      if (ref.read(currentProfileIdProvider) != profile.id) {
+        ref.read(currentProfileIdProvider.notifier).value = profile.id;
+      }
+      ref
+          .read(setupActionProvider.notifier)
+          .applyProfileDebounce(silence: silence);
+    } finally {
+      _isSyncingHub = false;
+    }
+  }
+
+  Future<Profile?> _fetchHubProfile({bool notifyMissing = false}) async {
+    final setting = ref.read(appSettingProvider);
+    final id = await deviceId();
+    if (id.isEmpty) {
+      throw MessageException(currentAppLocalizations.hubDeviceIdTip);
+    }
+    final url = hubProfileUrl(setting.hubUrl, id);
+    final existing = ref
+        .read(profilesProvider)
+        .where((item) => item.url == url)
+        .firstOrNull;
+    final profile = (existing ?? Profile.normal(url: url)).copyWith(
+      label: (existing?.label).takeFirstValid([
+        currentAppLocalizations.hubProfile,
+      ]),
+      autoUpdate: true,
+      autoUpdateDuration: hubUpdateDuration,
+    );
+    try {
+      return await profile.update(validate: _core.validateConfig);
+    } on DioException catch (error) {
+      final missing = error.response?.statusCode == HttpStatus.notFound;
+      if (!missing) {
+        rethrow;
+      }
+      // An unconfigured device answers 404; only the user's own pull says so.
+      if (notifyMissing) {
+        throw MessageException(currentAppLocalizations.hubProfileMissing);
+      }
+      commonPrint.log(
+        'the hub has no profile for $id',
+        logLevel: LogLevel.warning,
+      );
+      return null;
     }
   }
 
@@ -97,6 +191,9 @@ class ProfilesAction extends _$ProfilesAction {
   }
 
   Future<void> addProfileFormFile() async {
+    if (_isHubManaged()) {
+      return;
+    }
     final platformFile = await globalState.safeRun(picker.pickerFile);
     if (platformFile == null) return;
     final bytes = await platformFile.readBytes();
@@ -117,6 +214,9 @@ class ProfilesAction extends _$ProfilesAction {
   }
 
   Future<void> addProfileFormURL(String url) async {
+    if (_isHubManaged()) {
+      return;
+    }
     if (globalState.navigatorKey.currentState?.canPop() ?? false) {
       globalState.navigatorKey.currentState?.popUntil((route) => route.isFirst);
     }

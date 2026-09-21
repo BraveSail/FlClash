@@ -90,6 +90,9 @@ abstract class AppSettingProps with _$AppSettingProps {
     @Default(true) bool checkCertificate,
     @Default('') String customUserAgent,
     @Default('') String directoryId,
+    @Default('') String hubUrl,
+    @Default('') String hubToken,
+    @Default(false) bool hubViaProxy,
   }) = _AppSettingProps;
 
   factory AppSettingProps.fromJson(Map<String, Object?> json) =>

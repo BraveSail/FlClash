@@ -1145,7 +1145,6 @@ class AppLocalizations {
     return Intl.message('User-Agent', name: 'userAgent', desc: '', args: []);
   }
 
-
   /// `Unified delay`
   String get unifiedDelay {
     return Intl.message(
@@ -5111,6 +5110,106 @@ class AppLocalizations {
     return Intl.message(
       'The app list permission was denied, so installed apps cannot be listed. Please grant it manually in system settings.',
       name: 'installedAppsPermissionDeniedMessage',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Hub address`
+  String get hubUrl {
+    return Intl.message('Hub address', name: 'hubUrl', desc: '', args: []);
+  }
+
+  /// `Hub token`
+  String get hubToken {
+    return Intl.message('Hub token', name: 'hubToken', desc: '', args: []);
+  }
+
+  /// `Connect to Hub through the proxy`
+  String get hubViaProxy {
+    return Intl.message(
+      'Connect to Hub through the proxy',
+      name: 'hubViaProxy',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `On: the Hub is reached over the current proxy. Off: a direct connection of its own`
+  String get hubViaProxyDesc {
+    return Intl.message(
+      'On: the Hub is reached over the current proxy. Off: a direct connection of its own',
+      name: 'hubViaProxyDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Managed by the Hub - other import methods are disabled`
+  String get hubManagedTip {
+    return Intl.message(
+      'Managed by the Hub - other import methods are disabled',
+      name: 'hubManagedTip',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Hub`
+  String get hub {
+    return Intl.message('Hub', name: 'hub', desc: '', args: []);
+  }
+
+  /// `Hub profile`
+  String get hubProfile {
+    return Intl.message('Hub profile', name: 'hubProfile', desc: '', args: []);
+  }
+
+  /// `This device could not compute its id, so the Hub cannot be asked for a profile`
+  String get hubDeviceIdTip {
+    return Intl.message(
+      'This device could not compute its id, so the Hub cannot be asked for a profile',
+      name: 'hubDeviceIdTip',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `The Hub has no profile for this device yet`
+  String get hubProfileMissing {
+    return Intl.message(
+      'The Hub has no profile for this device yet',
+      name: 'hubProfileMissing',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Fetch this device profile from the Hub`
+  String get hubUrlDesc {
+    return Intl.message(
+      'Fetch this device profile from the Hub',
+      name: 'hubUrlDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Sent as a bearer token when asking the Hub for the profile`
+  String get hubTokenDesc {
+    return Intl.message(
+      'Sent as a bearer token when asking the Hub for the profile',
+      name: 'hubTokenDesc',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Hub config is enabled, other import methods are disabled`
+  String get hubImportDisabledTip {
+    return Intl.message(
+      'Hub config is enabled, other import methods are disabled',
+      name: 'hubImportDisabledTip',
       desc: '',
       args: [],
     );

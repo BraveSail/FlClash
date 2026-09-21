@@ -7,6 +7,7 @@ import 'package:dio/io.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
+import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/state.dart';
 
 class Request {
@@ -39,11 +40,38 @@ class Request {
     );
   }
 
-  Future<Response<Uint8List>> getFileResponseForUrl(String url) async {
+  ({Map<String, String> headers, bool viaProxy})? _hubConnectionFor(
+    String url,
+  ) {
+    final read = _read;
+    if (read == null) {
+      return null;
+    }
+    final setting = read(appSettingProvider);
+    if (!isHubEnabled(setting.hubUrl, setting.hubToken) ||
+        !isHubUrl(url, setting.hubUrl)) {
+      return null;
+    }
+    return (
+      headers: hubAuthHeaders(setting.hubToken),
+      viaProxy: setting.hubViaProxy,
+    );
+  }
+
+  Future<Response<Uint8List>> getFileResponseForUrl(
+    String url, {
+    Map<String, String>? headers,
+    bool? viaProxy,
+  }) async {
+    final hub = _hubConnectionFor(url);
+    final client = (viaProxy ?? hub?.viaProxy ?? true) ? _clashDio : dio;
     try {
-      return await _clashDio.get<Uint8List>(
+      return await client.get<Uint8List>(
         url,
-        options: Options(responseType: ResponseType.bytes),
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: headers ?? hub?.headers,
+        ),
       );
     } catch (e) {
       commonPrint.log(

@@ -617,5 +617,17 @@
   "authorize": "Authorize",
   "installedAppsPermissionRequired": "App list permission required",
   "installedAppsPermissionDesc": "This system hides the installed app list until the permission is granted. Authorize it to configure the per-app proxy.",
-  "installedAppsPermissionDeniedMessage": "The app list permission was denied, so installed apps cannot be listed. Please grant it manually in system settings."
+  "installedAppsPermissionDeniedMessage": "The app list permission was denied, so installed apps cannot be listed. Please grant it manually in system settings.",
+  "hubUrl": "Hub address",
+  "hubToken": "Hub token",
+  "hubViaProxy": "Connect to Hub through the proxy",
+  "hubViaProxyDesc": "On: the Hub is reached over the current proxy. Off: a direct connection of its own",
+  "hubManagedTip": "Managed by the Hub - other import methods are disabled",
+  "hub": "Hub",
+  "hubProfile": "Hub profile",
+  "hubDeviceIdTip": "This device could not compute its id, so the Hub cannot be asked for a profile",
+  "hubProfileMissing": "The Hub has no profile for this device yet",
+  "hubUrlDesc": "Fetch this device profile from the Hub",
+  "hubTokenDesc": "Sent as a bearer token when asking the Hub for the profile",
+  "hubImportDisabledTip": "Hub config is enabled, other import methods are disabled"
 }

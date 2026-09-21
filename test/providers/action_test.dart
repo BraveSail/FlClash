@@ -4,6 +4,7 @@ import 'package:fl_clash/core/controller.dart';
 import 'package:fl_clash/core/desktop/model.dart';
 import 'package:fl_clash/core/interface.dart';
 import 'package:fl_clash/enum/enum.dart';
+import 'package:fl_clash/l10n/l10n.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/action.dart';
 import 'package:fl_clash/providers/app.dart';
@@ -11,6 +12,7 @@ import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/providers/core.dart';
 import 'package:fl_clash/providers/database.dart';
 import 'package:fl_clash/providers/state.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:riverpod/riverpod.dart';
@@ -20,6 +22,12 @@ import '../helpers/test_profiles.dart';
 class _MockCoreHandlerInterface extends Mock implements CoreHandlerInterface {}
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() async {
+    await AppLocalizations.load(const Locale('en'));
+  });
+
   group('ProfilesAction', () {
     test('keeps edited profile data when remote update fails', () async {
       final original = Profile.normal(label: 'old label', url: 'bad-url');
@@ -125,6 +133,59 @@ void main() {
 
       expect(container.read(profilesProvider), [current, other]);
       expect(container.read(currentProfileIdProvider), current.id);
+    });
+  });
+
+  group('hub profile sync', () {
+    test('does nothing while the hub is not configured', () async {
+      final stale = Profile.normal(
+        label: 'Hub profile',
+        url: 'https://hub.example/profile?id=abc',
+      ).copyWith(autoUpdate: false);
+      final container = ProviderContainer(
+        overrides: [
+          currentProfileIdProvider.overrideWithBuild((_, _) => stale.id),
+          profilesProvider.overrideWith(() => TestProfiles([stale])),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(profilesActionProvider.notifier).syncHubProfile();
+
+      expect(container.read(profilesProvider), [stale]);
+      expect(container.read(currentProfileIdProvider), stale.id);
+    });
+
+    test('the hub profile is refreshed by the sync, not by the loop', () async {
+      final hubProfile =
+          Profile.normal(
+            label: 'Hub profile',
+            url: 'https://hub.example/profile?id=abc',
+          ).copyWith(
+            autoUpdate: true,
+            lastUpdateDate: DateTime.now().subtract(const Duration(days: 1)),
+          );
+      final container = ProviderContainer(
+        overrides: [
+          currentProfileIdProvider.overrideWithBuild((_, _) => null),
+          appSettingProvider.overrideWithBuild(
+            (_, _) => const AppSettingProps(
+              hubUrl: 'https://hub.example',
+              hubToken: 'secret',
+            ),
+          ),
+          profilesProvider.overrideWith(() => TestProfiles([hubProfile])),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(profilesActionProvider.notifier)
+          .autoUpdateProfiles();
+
+      // The loop must leave the hub profile to syncHubProfile, which has
+      // the token; refreshing it here would go out unauthenticated.
+      expect(container.read(profilesProvider), [hubProfile]);
     });
   });
 

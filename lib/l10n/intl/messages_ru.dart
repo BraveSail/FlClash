@@ -530,6 +530,34 @@ class MessageLookup extends MessageLookupByLibrary {
     "hours": MessageLookupByLibrary.simpleMessage("часов"),
     "hoursAgo": m12,
     "hoursCount": m13,
+    "hub": MessageLookupByLibrary.simpleMessage("Hub"),
+    "hubDeviceIdTip": MessageLookupByLibrary.simpleMessage(
+      "Не удалось вычислить id устройства, профиль у Hub не запросить",
+    ),
+    "hubImportDisabledTip": MessageLookupByLibrary.simpleMessage(
+      "Конфигурация Hub включена, другие способы импорта отключены",
+    ),
+    "hubManagedTip": MessageLookupByLibrary.simpleMessage(
+      "Управляется Hub - другие способы импорта отключены",
+    ),
+    "hubProfile": MessageLookupByLibrary.simpleMessage("Профиль Hub"),
+    "hubProfileMissing": MessageLookupByLibrary.simpleMessage(
+      "В Hub пока нет профиля для этого устройства",
+    ),
+    "hubToken": MessageLookupByLibrary.simpleMessage("Токен Hub"),
+    "hubTokenDesc": MessageLookupByLibrary.simpleMessage(
+      "Отправляется как bearer-токен при запросе профиля у Hub",
+    ),
+    "hubUrl": MessageLookupByLibrary.simpleMessage("Адрес Hub"),
+    "hubUrlDesc": MessageLookupByLibrary.simpleMessage(
+      "Получать профиль этого устройства из Hub",
+    ),
+    "hubViaProxy": MessageLookupByLibrary.simpleMessage(
+      "Подключаться к Hub через прокси",
+    ),
+    "hubViaProxyDesc": MessageLookupByLibrary.simpleMessage(
+      "Вкл: Hub доступен через текущий прокси. Выкл: собственное прямое подключение",
+    ),
     "icon": MessageLookupByLibrary.simpleMessage("Значок"),
     "iconRecords": MessageLookupByLibrary.simpleMessage("История значков"),
     "iconStyle": MessageLookupByLibrary.simpleMessage("Стиль значков"),
@@ -565,10 +593,9 @@ class MessageLookup extends MessageLookupByLibrary {
     "inputRuleContent": MessageLookupByLibrary.simpleMessage(
       "Введите содержимое правила",
     ),
-    "installedAppsPermissionDeniedMessage":
-        MessageLookupByLibrary.simpleMessage(
-          "Разрешение на список приложений отклонено, поэтому установленные приложения недоступны. Предоставьте его вручную в системных настройках.",
-        ),
+    "installedAppsPermissionDeniedMessage": MessageLookupByLibrary.simpleMessage(
+      "Разрешение на список приложений отклонено, поэтому установленные приложения недоступны. Предоставьте его вручную в системных настройках.",
+    ),
     "installedAppsPermissionDesc": MessageLookupByLibrary.simpleMessage(
       "Эта система не выдаёт список установленных приложений без разрешения. Предоставьте его, чтобы настроить прокси для отдельных приложений.",
     ),

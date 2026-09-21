@@ -420,6 +420,30 @@ class MessageLookup extends MessageLookupByLibrary {
     "hours": MessageLookupByLibrary.simpleMessage("時間"),
     "hoursAgo": m12,
     "hoursCount": m13,
+    "hub": MessageLookupByLibrary.simpleMessage("Hub"),
+    "hubDeviceIdTip": MessageLookupByLibrary.simpleMessage(
+      "この端末の id を計算できず、Hub からプロファイルを取得できません",
+    ),
+    "hubImportDisabledTip": MessageLookupByLibrary.simpleMessage(
+      "Hub 構成が有効なため、他のインポート方法は無効です",
+    ),
+    "hubManagedTip": MessageLookupByLibrary.simpleMessage(
+      "Hub で管理中 - 他のインポート方法は無効です",
+    ),
+    "hubProfile": MessageLookupByLibrary.simpleMessage("Hub プロファイル"),
+    "hubProfileMissing": MessageLookupByLibrary.simpleMessage(
+      "Hub にこの端末のプロファイルがまだありません",
+    ),
+    "hubToken": MessageLookupByLibrary.simpleMessage("Hub トークン"),
+    "hubTokenDesc": MessageLookupByLibrary.simpleMessage(
+      "Hub にプロファイルを要求するとき Bearer トークンとして送信",
+    ),
+    "hubUrl": MessageLookupByLibrary.simpleMessage("Hub アドレス"),
+    "hubUrlDesc": MessageLookupByLibrary.simpleMessage("Hub からこの端末のプロファイルを取得"),
+    "hubViaProxy": MessageLookupByLibrary.simpleMessage("プロキシ経由で Hub に接続"),
+    "hubViaProxyDesc": MessageLookupByLibrary.simpleMessage(
+      "有効: 現在のプロキシ経由で Hub に接続。無効: 独自に直接接続",
+    ),
     "icon": MessageLookupByLibrary.simpleMessage("アイコン"),
     "iconRecords": MessageLookupByLibrary.simpleMessage("アイコン履歴"),
     "iconStyle": MessageLookupByLibrary.simpleMessage("アイコンスタイル"),

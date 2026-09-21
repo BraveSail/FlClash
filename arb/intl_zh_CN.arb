@@ -617,5 +617,17 @@
   "authorize": "授权",
   "installedAppsPermissionRequired": "需要读取应用列表权限",
   "installedAppsPermissionDesc": "当前系统在授权前不会提供已安装的应用列表，授权后即可配置分应用代理。",
-  "installedAppsPermissionDeniedMessage": "读取应用列表权限已被拒绝，无法获取已安装的应用。请前往系统设置手动开启。"
+  "installedAppsPermissionDeniedMessage": "读取应用列表权限已被拒绝，无法获取已安装的应用。请前往系统设置手动开启。",
+  "hubUrl": "Hub 地址",
+  "hubToken": "Hub Token",
+  "hubViaProxy": "通过代理连接 Hub",
+  "hubViaProxyDesc": "开启时经当前代理访问 Hub;关闭时自行直连",
+  "hubManagedTip": "配置由 Hub 管理,其他导入方式已禁用",
+  "hub": "Hub 配置",
+  "hubProfile": "Hub 配置",
+  "hubDeviceIdTip": "无法计算本机设备 id,不能向 Hub 获取配置",
+  "hubProfileMissing": "Hub 上还没有这台设备的配置",
+  "hubUrlDesc": "从 Hub 获取本机配置",
+  "hubTokenDesc": "向 Hub 请求配置时作为 Bearer token 发送",
+  "hubImportDisabledTip": "已启用 Hub 配置,其他导入方式已禁用"
 }

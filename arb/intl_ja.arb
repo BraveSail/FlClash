@@ -617,5 +617,17 @@
   "authorize": "許可",
   "installedAppsPermissionRequired": "アプリ一覧の権限が必要です",
   "installedAppsPermissionDesc": "このシステムでは、許可するまでインストール済みアプリの一覧が提供されません。許可すると、アプリごとのプロキシを設定できます。",
-  "installedAppsPermissionDeniedMessage": "アプリ一覧の権限が拒否されたため、インストール済みアプリを取得できません。システム設定から手動で許可してください。"
+  "installedAppsPermissionDeniedMessage": "アプリ一覧の権限が拒否されたため、インストール済みアプリを取得できません。システム設定から手動で許可してください。",
+  "hubUrl": "Hub アドレス",
+  "hubToken": "Hub トークン",
+  "hubViaProxy": "プロキシ経由で Hub に接続",
+  "hubViaProxyDesc": "有効: 現在のプロキシ経由で Hub に接続。無効: 独自に直接接続",
+  "hubManagedTip": "Hub で管理中 - 他のインポート方法は無効です",
+  "hub": "Hub",
+  "hubProfile": "Hub プロファイル",
+  "hubDeviceIdTip": "この端末の id を計算できず、Hub からプロファイルを取得できません",
+  "hubProfileMissing": "Hub にこの端末のプロファイルがまだありません",
+  "hubUrlDesc": "Hub からこの端末のプロファイルを取得",
+  "hubTokenDesc": "Hub にプロファイルを要求するとき Bearer トークンとして送信",
+  "hubImportDisabledTip": "Hub 構成が有効なため、他のインポート方法は無効です"
 }
