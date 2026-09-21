@@ -112,7 +112,7 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           appSettingProvider.overrideWithBuild(
-            (_, _) => AppSettingProps(
+            (_, _) => const AppSettingProps(
               hubUrl: 'https://hub.example',
               hubToken: 'secret',
               hubViaProxy: false,
@@ -128,4 +128,88 @@ void main() {
       expect(authorization, isNull);
     });
   });
+
+  group('the direct connection ignores the app-wide proxy', () {
+    late HttpServer server;
+    late String origin;
+    late HttpOverrides? previous;
+
+    setUp(() async {
+      previous = HttpOverrides.current;
+      HttpOverrides.global = _DeadProxyOverrides();
+      server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      origin = 'http://${server.address.host}:${server.port}';
+      unawaited(
+        server.forEach((req) async {
+          req.response
+            ..statusCode = HttpStatus.ok
+            ..write('ok');
+          await req.response.close();
+        }),
+      );
+    });
+
+    tearDown(() async {
+      await server.close(force: true);
+      HttpOverrides.global = previous;
+    });
+
+    // An adapter keeps the HttpClient it built on its first request, so each
+    // test needs its own client or it answers from before the override.
+    Request freshRequest() {
+      final container = ProviderContainer(
+        overrides: [
+          appSettingProvider.overrideWithBuild(
+            (_, _) => AppSettingProps(
+              hubUrl: origin,
+              hubToken: 'secret',
+              hubViaProxy: false,
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      return Request()..attach(container.read);
+    }
+
+    test('a hub told not to use the proxy reaches the origin', () async {
+      final response = await freshRequest().getFileResponseForUrl(
+        '$origin/profile?id=abc',
+      );
+
+      expect(String.fromCharCodes(response.data!), 'ok');
+    });
+
+    test('a hub told to use the proxy goes through it', () async {
+      final container = ProviderContainer(
+        overrides: [
+          appSettingProvider.overrideWithBuild(
+            (_, _) => AppSettingProps(
+              hubUrl: origin,
+              hubToken: 'secret',
+              hubViaProxy: true,
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final hubRequest = Request()..attach(container.read);
+
+      await expectLater(
+        hubRequest.getFileResponseForUrl('$origin/profile?id=abc'),
+        throwsA(isA<DioException>()),
+      );
+    });
+  });
+}
+
+/// Stands in for the app-wide proxy: everything it hands out is pointed at a
+/// port nothing listens on, so a request through it cannot succeed.
+class _DeadProxyOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    final client = super.createHttpClient(context);
+    client.findProxy = (uri) => 'PROXY 127.0.0.1:1';
+    return client;
+  }
 }

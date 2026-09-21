@@ -13,6 +13,7 @@ import 'package:fl_clash/state.dart';
 class Request {
   late final Dio dio;
   late final Dio _clashDio;
+  late final Dio _directDio;
   String? userAgent;
 
   ProviderReader? _read;
@@ -35,6 +36,17 @@ class Request {
           }
           return FlClashHttpOverrides.findProxyForReader(read, uri);
         };
+        return client;
+      },
+    );
+    _directDio = Dio(BaseOptions(headers: {'User-Agent': browserUa}));
+    _directDio.httpClientAdapter = IOHttpClientAdapter(
+      createHttpClient: () {
+        final client = HttpClient();
+        // Plain `dio` is not enough to stay off the proxy: its default adapter
+        // builds its client through HttpOverrides.global, which the app points
+        // at the running core, so the override has to be undone here.
+        client.findProxy = (uri) => 'DIRECT';
         return client;
       },
     );
@@ -64,7 +76,7 @@ class Request {
     bool? viaProxy,
   }) async {
     final hub = _hubConnectionFor(url);
-    final client = (viaProxy ?? hub?.viaProxy ?? true) ? _clashDio : dio;
+    final client = (viaProxy ?? hub?.viaProxy ?? true) ? _clashDio : _directDio;
     try {
       return await client.get<Uint8List>(
         url,
