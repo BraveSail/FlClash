@@ -198,6 +198,38 @@ void main() {
       expect(devices.map((d) => d.id), ['aaaa1111']);
     });
 
+    test('reads the domain a rule reaches the device by', () {
+      final devices = parseHubDevices({
+        'nodes': [
+          {'id': 'aaaa1111', 'hostname': 'pc', 'domain': 'pc.lan'},
+          {'id': 'bbbb2222', 'hostname': 'gt7'},
+        ],
+      });
+
+      expect(devices.first.domain, 'pc.lan');
+      // A device the hub holds no domain for keeps its place: the core writes
+      // no rule for it, and it is still reached by its name.
+      expect(devices.last.domain, isEmpty);
+    });
+
+    test('normalizes a domain and drops one the core would refuse', () {
+      final devices = parseHubDevices({
+        'nodes': [
+          {'id': 'aaaa1111', 'domain': 'PC.LAN'},
+          {'id': 'bbbb2222', 'domain': 'has spaces'},
+          {'id': 'cccc3333', 'domain': '-bad.example'},
+        ],
+      });
+
+      // The core matches the name a connection asked for, and a domain is
+      // case-insensitive: lower case here is what makes the rule match.
+      expect(devices.first.domain, 'pc.lan');
+      // A domain only decides which device a name reaches, so a bad one costs
+      // the device its domain, not its place in the mesh.
+      expect(devices[1].domain, isEmpty);
+      expect(devices[2].domain, isEmpty);
+    });
+
     test(
       'keeps a device without a usable port and answers an unreadable payload',
       () {
@@ -236,6 +268,43 @@ void main() {
         {'name': 'gt7', 'id': 'bbbb2222', 'port': 9443},
       ]);
       expect(mesh.containsKey('directory-proxy'), isFalse);
+    });
+
+    test('writes the domain so the core can write the rule from it', () {
+      final rawConfig = <String, dynamic>{
+        'mesh': <String, dynamic>{'directory-url': 'https://hub.example'},
+      };
+
+      applyHubDevices(
+        rawConfig,
+        devices: const [
+          HubDevice(name: 'PC', id: 'aaaa1111', domain: 'pc.lan'),
+          HubDevice(name: 'gt7', id: 'bbbb2222', domain: 'gt7.lan'),
+        ],
+      );
+
+      // The profile writes no rule for a device: the core writes one per
+      // domain here, so a device renamed on the dashboard never leaves a rule
+      // pointing at nothing.
+      expect((rawConfig['mesh'] as Map)['devices'], [
+        {'name': 'PC', 'id': 'aaaa1111', 'domain': 'pc.lan'},
+        {'name': 'gt7', 'id': 'bbbb2222', 'domain': 'gt7.lan'},
+      ]);
+    });
+
+    test('leaves the domain out when the hub holds none', () {
+      final rawConfig = <String, dynamic>{
+        'mesh': <String, dynamic>{'directory-url': 'https://hub.example'},
+      };
+
+      applyHubDevices(
+        rawConfig,
+        devices: const [HubDevice(name: 'PC', id: 'aaaa1111')],
+      );
+
+      expect((rawConfig['mesh'] as Map)['devices'], [
+        {'name': 'PC', 'id': 'aaaa1111'},
+      ]);
     });
 
     test('an empty list is still a resolved list', () {

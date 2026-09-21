@@ -49,14 +49,29 @@ final _deviceName = RegExp(r'^[A-Za-z0-9._-]{1,63}$');
 /// One device the hub knows, as the shared mesh block needs it: the name a
 /// rule reaches it by and the id the directory is asked about.
 class HubDevice {
-  const HubDevice({required this.name, required this.id, this.port = 0});
+  const HubDevice({
+    required this.name,
+    required this.id,
+    this.port = 0,
+    this.domain = '',
+  });
 
   final String name;
   final String id;
 
   /// The port the device serves on, or zero when the hub recorded none.
   final int port;
+
+  /// The name a mesh rule reaches this device by, e.g. "pc.lan", or empty when
+  /// the hub holds none. The core writes the rule from it, so a device renamed
+  /// on the dashboard never leaves a rule pointing at nothing.
+  final String domain;
 }
+
+/// A mesh domain is a lower-case DNS name a rule can carry, e.g. "pc.lan".
+final _deviceDomain = RegExp(
+  r'^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$',
+);
 
 /// Reads the device list out of what the hub answered, in the shape the core
 /// expands: the name is the alias someone set, else the host name the machine
@@ -87,11 +102,16 @@ List<HubDevice> parseHubDevices(Object? payload) {
     }
     seen.add(name);
     final port = node['port'];
+    final domain = '${node['domain'] ?? ''}'.trim().toLowerCase();
     devices.add(
       HubDevice(
         name: name,
         id: id,
         port: port is int && port >= 1 && port <= 65535 ? port : 0,
+        // A domain the core would refuse is dropped here rather than passed
+        // on: it only decides which device a name reaches, so a bad one
+        // should not cost the device its place in the mesh.
+        domain: _deviceDomain.hasMatch(domain) ? domain : '',
       ),
     );
   }
@@ -121,6 +141,7 @@ void applyHubDevices(
         'name': device.name,
         'id': device.id,
         if (device.port > 0) 'port': device.port,
+        if (device.domain.isNotEmpty) 'domain': device.domain,
       },
   ];
   if (directoryProxy.isNotEmpty) {
