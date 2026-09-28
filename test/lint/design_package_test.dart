@@ -19,10 +19,14 @@ const _forbiddenImports = <String, String>{
 const _generatedL10n = ['lib/l10n/l10n.dart', 'lib/l10n/intl/'];
 
 bool _isGenerated(String path) {
-  return path.contains('/generated/') ||
-      path.endsWith('.g.dart') ||
-      path.endsWith('.freezed.dart') ||
-      _generatedL10n.any(path.startsWith);
+  // `p.relative` hands back the host's separator, so every `/`-separated name
+  // below would miss on Windows and the generated trees would be linted as if
+  // they were hand-written.
+  final posix = path.replaceAll('\\', '/');
+  return posix.contains('/generated/') ||
+      posix.endsWith('.g.dart') ||
+      posix.endsWith('.freezed.dart') ||
+      _generatedL10n.any(posix.startsWith);
 }
 
 void main() {

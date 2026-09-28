@@ -218,13 +218,22 @@ void main() {
       );
       expect(config['hosts']['router.local'], ['192.168.1.1', '192.168.1.2']);
       expect(config['sniffer']['sniff']['HTTP']['ports'], ['80', '443']);
+      // The app builds this with `package:path`'s join, which speaks the host's
+      // separator — `/profiles\providers\...` on Windows — because the core
+      // resolves it natively. Spelling the expectation with the same join is
+      // what keeps this check about confinement rather than about the host.
       expect(
         config['proxy-providers']['remote']['path'],
-        startsWith('/profiles/providers/7/proxies/'),
+        startsWith(
+          join('/profiles', 'providers', '7', 'proxies') +
+              Platform.pathSeparator,
+        ),
       );
       expect(
         config['rule-providers']['remote']['path'],
-        startsWith('/profiles/providers/7/rules/'),
+        startsWith(
+          join('/profiles', 'providers', '7', 'rules') + Platform.pathSeparator,
+        ),
       );
       expect(config['rules'], [
         'DOMAIN-SUFFIX,added.example,Original',

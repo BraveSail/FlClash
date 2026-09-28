@@ -8,6 +8,11 @@ import 'package:flutter_test/flutter_test.dart';
 const _arbDir = 'arb';
 const _libDir = 'lib';
 
+/// `listSync` returns the host's separator, so a Windows run reads
+/// `lib\l10n\l10n.dart`. The `/`-separated exclusions below would match nothing
+/// and the generated localizations would be reported as offenders.
+String _posix(String path) => path.replaceAll('\\', '/');
+
 Map<String, Set<String>> _arbKeys() {
   final result = <String, Set<String>>{};
   for (final entity in Directory(_arbDir).listSync()) {
@@ -47,7 +52,10 @@ void main() {
     for (final entity in Directory(_libDir).listSync(recursive: true)) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
       final path = entity.path;
-      if (path.contains('/generated/') || path.contains('/l10n/')) continue;
+      if (_posix(path).contains('/generated/') ||
+          _posix(path).contains('/l10n/')) {
+        continue;
+      }
       if (entity.readAsStringSync().contains('Intl.message(')) {
         offenders.add(path);
       }

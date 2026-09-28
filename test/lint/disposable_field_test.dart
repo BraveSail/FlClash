@@ -39,9 +39,12 @@ final _lateDeclaration = RegExp(
 );
 
 bool _isGenerated(String path) {
-  return path.contains('/generated/') ||
-      path.endsWith('.g.dart') ||
-      path.endsWith('.freezed.dart');
+  // `p.relative` returns the host's separator; on Windows `\generated\` would
+  // not match the `/`-separated marker and generated code would be linted.
+  final posix = path.replaceAll('\\', '/');
+  return posix.contains('/generated/') ||
+      posix.endsWith('.g.dart') ||
+      posix.endsWith('.freezed.dart');
 }
 
 void main() {
@@ -53,7 +56,7 @@ void main() {
       if (entity is! File || !entity.path.endsWith('.dart')) {
         continue;
       }
-      final relative = p.relative(entity.path);
+      final relative = p.relative(entity.path).replaceAll('\\', '/');
       if (_isGenerated(relative)) {
         continue;
       }
