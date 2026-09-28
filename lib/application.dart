@@ -131,12 +131,18 @@ class ApplicationState extends ConsumerState<Application> {
 
   void _initHubTask() {
     unawaited(ref.read(profilesActionProvider.notifier).syncHubProfile());
+    // And then keep the socket open, so a save on the dashboard lands in
+    // seconds rather than waiting out the 20-minute rotation.
+    ref.read(profilesActionProvider.notifier).watchHubProfile();
   }
 
   Future<void> _handleConnectivityChanged(
     List<ConnectivityResult> results,
   ) async {
     commonPrint.log('connectivityChanged ${results.toString()}');
+    // A dropped socket is only noticed on the next write, so a network change
+    // reopens it instead of waiting for the retry timer.
+    ref.read(profilesActionProvider.notifier).watchHubProfile();
     unawaited(systemDnsCoordinator?.resync() ?? Future.value());
     unawaited(ref.read(systemActionProvider.notifier).updateLocalIp());
     unawaited(ref.read(systemActionProvider.notifier).injectNetworkChange());

@@ -66,6 +66,22 @@ const midDuration = Duration(milliseconds: 200);
 const commonDuration = Duration(milliseconds: 300);
 const defaultUpdateDuration = Duration(days: 1);
 const hubUpdateDuration = Duration(minutes: 20);
+
+/// How long to wait before reopening the hub push socket after it drops. Short
+/// enough that a device follows a dashboard save within seconds of recovering,
+/// long enough that a hub that is down is not hammered.
+const hubPushRetryDuration = Duration(seconds: 15);
+
+/// How long a hub push socket may take to come up before it is treated as
+/// unavailable and left to the retry timer, rather than holding the connect
+/// open against a hub that never answers.
+const hubPushTimeout = Duration(seconds: 10);
+
+/// How long a pushed profile waits for an in-flight pull of the same profile to
+/// finish before giving up on it. A sync is a validation and a file copy, so the
+/// bound is generous; a write that outlasts it is left to the next rotation.
+const hubPushApplyWaits = 20;
+const hubPushApplyGap = Duration(milliseconds: 150);
 const MMDB = 'GEOIP.metadb';
 const ASN = 'ASN.mmdb';
 const GEOIP = 'GEOIP.dat';

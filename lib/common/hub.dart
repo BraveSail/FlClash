@@ -27,6 +27,37 @@ String hubDevicesUrl(String hubUrl) {
   return base.isEmpty ? '' : '$base/api/devices';
 }
 
+/// The socket a device holds to hear its own profile the moment the dashboard
+/// saves one, instead of waiting for its next poll. It names the revision it
+/// already runs, so the hub answers with nothing while it is up to date.
+String hubProfileWatchUrl(String hubUrl, String deviceId, String etag) {
+  final base = normalizeHubUrl(hubUrl);
+  if (base.isEmpty) {
+    return '';
+  }
+  final id = deviceId.trim();
+  if (id.isEmpty) {
+    return '';
+  }
+  final query = Uri(queryParameters: {
+    'id': id,
+    if (etag.trim().isNotEmpty) 'etag': etag.trim(),
+  }).query;
+  return '$base/profile/watch?$query';
+}
+
+/// The scheme a socket to this hub is opened with: the hub may be plain http
+/// on a LAN, and the socket has to match what the client already reaches.
+String hubSocketUrl(String url) {
+  if (url.startsWith('https://')) {
+    return 'wss://${url.substring('https://'.length)}';
+  }
+  if (url.startsWith('http://')) {
+    return 'ws://${url.substring('http://'.length)}';
+  }
+  return url;
+}
+
 bool isHubUrl(String url, String hubUrl) {
   final base = Uri.tryParse(normalizeHubUrl(hubUrl));
   final target = Uri.tryParse(url);

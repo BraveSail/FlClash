@@ -114,6 +114,47 @@ void main() {
     });
   });
 
+  group('hubProfileWatchUrl', () {
+    test('addresses the socket and carries the revision it runs', () {
+      expect(
+        hubProfileWatchUrl('https://hub.example/', 'a3f8b2c91d04', '"42"'),
+        'https://hub.example/profile/watch?id=a3f8b2c91d04&etag=%2242%22',
+      );
+    });
+
+    test('asks without an etag when the device has none to name', () {
+      expect(
+        hubProfileWatchUrl('https://hub.example', 'a3f8b2c91d04', '  '),
+        'https://hub.example/profile/watch?id=a3f8b2c91d04',
+      );
+    });
+
+    test('is empty without an address or an id', () {
+      expect(hubProfileWatchUrl('  ', 'a3f8b2c91d04', ''), '');
+      expect(hubProfileWatchUrl('https://hub.example', '  ', ''), '');
+    });
+  });
+
+  group('hubSocketUrl', () {
+    test('matches the scheme the client already reaches the hub with', () {
+      expect(
+        hubSocketUrl('https://hub.example/profile/watch?id=x'),
+        'wss://hub.example/profile/watch?id=x',
+      );
+      // A hub on a LAN is plain http, and a socket to it has to stay plain too
+      // or the upgrade never completes.
+      expect(
+        hubSocketUrl('http://192.168.1.9:8787/profile/watch?id=x'),
+        'ws://192.168.1.9:8787/profile/watch?id=x',
+      );
+    });
+
+    test('leaves an address it does not know the scheme of alone', () {
+      expect(hubSocketUrl(''), '');
+      expect(hubSocketUrl('ws://hub.example/x'), 'ws://hub.example/x');
+    });
+  });
+
   group('hubAuthHeaders', () {
     test('sends the token as a bearer credential', () {
       expect(hubAuthHeaders(' secret '), {'Authorization': 'Bearer secret'});

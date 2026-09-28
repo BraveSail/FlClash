@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:fl_clash/common/boot_guard.dart';
 import 'package:fl_clash/common/common.dart';
@@ -19,6 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' show basename;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:web_socket_channel/io.dart' show IOWebSocketChannel;
 
 part 'actions/common.dart';
 part 'actions/setup.dart';

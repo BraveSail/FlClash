@@ -36,6 +36,9 @@ class HubUrlItem extends ConsumerWidget {
         ref
             .read(appSettingProvider.notifier)
             .update((state) => state.copyWith(hubUrl: (value ?? '').trim()));
+        // A new address means the socket is pointed at the wrong hub, so it is
+        // reopened against the one just saved.
+        ref.read(profilesActionProvider.notifier).watchHubProfile();
         unawaited(
           ref
               .read(profilesActionProvider.notifier)
@@ -83,6 +86,9 @@ class HubTokenItem extends ConsumerWidget {
     ref
         .read(appSettingProvider.notifier)
         .update((state) => state.copyWith(hubToken: token.trim()));
+    // The token is the socket's credential too: it is reopened so the new one
+    // is what the hub sees.
+    ref.read(profilesActionProvider.notifier).watchHubProfile();
     unawaited(ref.read(profilesActionProvider.notifier).syncHubProfile());
   }
 }

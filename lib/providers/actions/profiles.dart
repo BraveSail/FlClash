@@ -66,6 +66,111 @@ class ProfilesAction extends _$ProfilesAction {
     return isHubEnabled(setting.hubUrl, setting.hubToken);
   }
 
+  StreamSubscription<dynamic>? _hubPushSubscription;
+  Timer? _hubPushRetry;
+
+  /// Holds a socket to the hub so a save there reaches this device at once,
+  /// instead of waiting out the rotation: the hub profile is pulled on the same
+  /// 20-minute timer as everything else, so a dashboard edit otherwise lands up
+  /// to twenty minutes after it was made.
+  ///
+  /// The socket is best-effort. Everything it delivers is a profile the pull
+  /// path can also fetch, so a hub that refuses the upgrade, a network that
+  /// drops it, or a platform without socket support all fall back to the poll
+  /// that already exists - this only makes the common case immediate.
+  void watchHubProfile() {
+    if (!_isHubEnable) {
+      return;
+    }
+    unawaited(_openHubPush());
+  }
+
+  Future<void> _openHubPush() async {
+    _hubPushRetry?.cancel();
+    await _hubPushSubscription?.cancel();
+    _hubPushSubscription = null;
+    if (!_isHubEnable) {
+      return;
+    }
+    final setting = ref.read(appSettingProvider);
+    final id = await deviceId();
+    if (id.isEmpty) {
+      return;
+    }
+    // No revision is named: the device only learns its ETag through the pull
+    // path, and a socket that names none is answered with the current YAML
+    // once. That costs one redundant write on connect, and guessing at a
+    // revision the hub would not match would silence the first real change.
+    final target = hubSocketUrl(hubProfileWatchUrl(setting.hubUrl, id, ''));
+    if (target.isEmpty) {
+      return;
+    }
+    try {
+      final channel = IOWebSocketChannel.connect(
+        Uri.parse(target),
+        headers: hubAuthHeaders(setting.hubToken),
+        connectTimeout: hubPushTimeout,
+      );
+      await channel.ready;
+      _hubPushSubscription = channel.stream.listen(
+        (message) => unawaited(_onHubPush(message)),
+        onError: (_) => _scheduleHubPushRetry(),
+        onDone: _scheduleHubPushRetry,
+        cancelOnError: true,
+      );
+    } catch (e) {
+      commonPrint.log('hub push socket failed: ${compactError(e)}',
+          logLevel: LogLevel.warning);
+      _scheduleHubPushRetry();
+    }
+  }
+
+  void _scheduleHubPushRetry() {
+    if (!_isHubEnable) {
+      return;
+    }
+    _hubPushRetry?.cancel();
+    _hubPushRetry = Timer(hubPushRetryDuration, () {
+      unawaited(_openHubPush());
+    });
+  }
+
+  /// A frame from the hub: the YAML this device should be running. It goes
+  /// through the same validation a pull takes, so a bad payload cannot take the
+  /// device down, and the profile that is running is only replaced once the new
+  /// one is known good.
+  Future<void> _onHubPush(dynamic message) async {
+    if (message is! String) {
+      return;
+    }
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(message);
+    } catch (_) {
+      return;
+    }
+    if (decoded is! Map || decoded['type'] != 'profile') {
+      return;
+    }
+    final yaml = decoded['yaml'];
+    if (yaml is! String || yaml.trim().isEmpty) {
+      return;
+    }
+    try {
+      await applyHubYaml(yaml);
+    } catch (e) {
+      commonPrint.log('hub push apply failed: ${compactError(e)}',
+          logLevel: LogLevel.warning);
+    }
+  }
+
+  Future<void> closeHubPush() async {
+    _hubPushRetry?.cancel();
+    _hubPushRetry = null;
+    await _hubPushSubscription?.cancel();
+    _hubPushSubscription = null;
+  }
+
   /// Deep links and the album scanner reach the import actions without
   /// passing through the sheet that greys them out, so the gate lives here.
   bool _isHubManaged() {
@@ -108,6 +213,57 @@ class ProfilesAction extends _$ProfilesAction {
       ref
           .read(setupActionProvider.notifier)
           .applyProfileDebounce(silence: silence);
+    } finally {
+      _isSyncingHub = false;
+    }
+  }
+
+  /// Writes a YAML the hub pushed over the socket, through the same profile the
+  /// pull path maintains: same label, same auto-update settings, same
+  /// validation. The file is only replaced after the core accepts it, so a
+  /// payload that fails to load leaves the running profile alone.
+  ///
+  /// A push that lands while a pull is writing this same profile waits for that
+  /// write to finish rather than being dropped: the pushed revision is the newer
+  /// one, and dropping it would strand the device on the old YAML until the next
+  /// rotation - the very wait this socket exists to remove.
+  Future<void> applyHubYaml(String yaml) async {
+    for (var attempt = 0; attempt < hubPushApplyWaits && _isSyncingHub; attempt++) {
+      await Future<void>.delayed(hubPushApplyGap);
+    }
+    if (_isSyncingHub) {
+      // A write that outlasts the bound is not worth racing; the next rotation
+      // still picks the profile up.
+      return;
+    }
+    _isSyncingHub = true;
+    try {
+      final setting = ref.read(appSettingProvider);
+      final id = await deviceId();
+      if (id.isEmpty) {
+        return;
+      }
+      final url = hubProfileUrl(setting.hubUrl, id);
+      final existing = ref
+          .read(profilesProvider)
+          .where((item) => item.url == url)
+          .firstOrNull;
+      final profile = (existing ?? Profile.normal(url: url)).copyWith(
+        label: (existing?.label).takeFirstValid([
+          currentAppLocalizations.hubProfile,
+        ]),
+        autoUpdate: true,
+        autoUpdateDuration: hubUpdateDuration,
+      );
+      final saved = await profile.saveFile(
+        Uint8List.fromList(utf8.encode(yaml)),
+        validate: _core.validateConfig,
+      );
+      ref.read(profilesProvider.notifier).put(saved);
+      if (ref.read(currentProfileIdProvider) != saved.id) {
+        ref.read(currentProfileIdProvider.notifier).value = saved.id;
+      }
+      ref.read(setupActionProvider.notifier).applyProfileDebounce(silence: true);
     } finally {
       _isSyncingHub = false;
     }
