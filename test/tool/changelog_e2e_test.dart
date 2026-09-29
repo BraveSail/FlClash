@@ -24,7 +24,8 @@ void main() {
         // keeps git from asking.
         'GIT_EDITOR': 'true',
         'EDITOR': 'true',
-        if (Platform.environment['PATH'] case final path?) 'PATH': path,
+        'PATH': ?Platform.environment['PATH'],
+        'SystemRoot': ?Platform.environment['SystemRoot'],
       },
     );
     if (result.exitCode != 0) {
