@@ -642,6 +642,19 @@ func handleGetMemory() uint64 {
 	return statistic.DefaultManager.Memory()
 }
 
+// handleGetVersion reports what the core was built from.
+//
+// The about page shows it so a device on an older core is visible from that
+// device: mesh peers on mismatched cores fail each other's handshakes and the
+// failure names no build, so the version has to be readable somewhere.
+func handleGetVersion() *VersionInfo {
+	return &VersionInfo{
+		Version:   constant.Version,
+		Revision:  constant.Revision,
+		BuildTime: constant.BuildTime,
+	}
+}
+
 func handleGetConfig(path string) (*config.RawConfig, error) {
 	buf, err := os.ReadFile(path)
 	if err != nil {

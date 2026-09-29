@@ -218,6 +218,9 @@ var methodHandlers = map[CoreMethod]methodHandler{
 	closeConnectionsMethod: withoutArguments(func(response MethodResponse) {
 		response.success(handleCloseConnections())
 	}),
+	getVersionMethod: withoutArguments(func(response MethodResponse) {
+		response.success(handleGetVersion())
+	}),
 	resetConnectionsMethod: withoutArguments(func(response MethodResponse) {
 		response.success(handleResetConnections())
 	}),

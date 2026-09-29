@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/l10n/l10n.dart';
+import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/widgets/list.dart';
@@ -141,6 +142,7 @@ class AboutView extends ConsumerWidget {
                             globalState.packageInfo.version,
                             style: Theme.of(context).textTheme.labelLarge,
                           ),
+                          const _CoreVersionLine(),
                         ],
                       ),
                     ],
@@ -176,6 +178,68 @@ class AboutView extends ConsumerWidget {
         child: generateListView(items),
       ),
     );
+  }
+}
+
+/// The core's own version, under the app's.
+///
+/// Read once when the row is first shown rather than through a provider that
+/// resolves for every listener: the version cannot change while the app runs,
+/// and a core that is down or still starting must leave nothing pending behind
+/// it. A row that has nothing to say draws nothing, which is what an about page
+/// looked like before this line existed.
+class _CoreVersionLine extends ConsumerStatefulWidget {
+  const _CoreVersionLine();
+
+  @override
+  ConsumerState<_CoreVersionLine> createState() => _CoreVersionLineState();
+}
+
+class _CoreVersionLineState extends ConsumerState<_CoreVersionLine> {
+  CoreVersion? _version;
+
+  @override
+  Widget build(BuildContext context) {
+    // Only ask a core that is up: the request waits for a connection, and a
+    // core that is not running would leave that wait behind the page. The
+    // version cannot change while the app runs, so one read is enough.
+    if (!ref.watch(initProvider)) {
+      return const SizedBox.shrink();
+    }
+
+    final core = _version?.display ?? '';
+    if (core.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final builtAt = _version?.builtAt;
+    return Tooltip(
+      message: builtAt == null ? core : 'built $builtAt',
+      child: Text(
+        '${context.appLocalizations.core} $core',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _read());
+  }
+
+  Future<void> _read() async {
+    if (_version != null || !mounted || !ref.read(initProvider)) {
+      return;
+    }
+    final version = await globalState.safeRun<CoreVersion?>(
+      () => ref.read(coreHandlerProvider).getVersion(),
+    );
+    if (!mounted || version == null) {
+      return;
+    }
+    setState(() => _version = version);
   }
 }
 

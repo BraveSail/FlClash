@@ -226,6 +226,10 @@ class CoreController {
     return _interface.getMemory();
   }
 
+  Future<CoreVersion?> getVersion() async {
+    return _interface.getVersion();
+  }
+
   void resetTraffic() {
     _interface.resetTraffic();
   }

@@ -58,6 +58,14 @@ mixin CoreInterface {
 
   FutureOr<int> getMemory();
 
+  /// What the core says about its own build.
+  ///
+  /// Surfaced because a device on an older core behaves differently from its
+  /// peers in ways the app's own version does not show: mesh nodes on
+  /// mismatched cores fail each other's handshakes and the failure names no
+  /// build, so the version has to be readable from the device itself.
+  FutureOr<CoreVersion?> getVersion();
+
   FutureOr<void> resetTraffic();
 
   FutureOr<void> startLog();
@@ -371,6 +379,17 @@ abstract class CoreHandlerInterface with CoreInterface {
   @override
   Future<int> getMemory() async {
     return await _invokeMethod<int>(method: CoreMethod.getMemory) ?? 0;
+  }
+
+  @override
+  Future<CoreVersion?> getVersion() async {
+    // Null rather than a throw: an about page that cannot read the core is
+    // still an about page, and a core old enough to lack the method says so by
+    // answering nothing rather than by failing the screen.
+    final data = await _invokeMethod<Map<String, dynamic>>(
+      method: CoreMethod.getVersion,
+    );
+    return data == null ? null : CoreVersion.fromJson(data);
   }
 }
 

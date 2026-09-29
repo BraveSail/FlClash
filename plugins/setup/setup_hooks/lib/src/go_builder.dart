@@ -124,13 +124,77 @@ class GoBuilder {
     return env;
   }
 
+  /// The revision and the build time stamped into the core.
+  ///
+  /// The app shows them next to the version so a device running a different
+  /// build is visible from its own about page: nodes on mismatched cores fail
+  /// each other's handshakes and report nothing that points at why.
+  static String _readRevision(String corePath) {
+    try {
+      final r = runCommand('git', [
+        'rev-parse',
+        '--short=12',
+        'HEAD',
+      ], workingDirectory: corePath);
+      if (r.exitCode != 0) return '';
+      final rev = (r.stdout as String).trim();
+      if (rev.isEmpty) return '';
+      final s = runCommand('git', [
+        'status',
+        '--porcelain',
+      ], workingDirectory: corePath);
+      final dirty = s.exitCode == 0 && (s.stdout as String).trim().isNotEmpty;
+      return '$rev${dirty ? '-dirty' : ''}';
+    } catch (_) {
+      return '';
+    }
+  }
+
   List<String> _buildArguments(Target target, {String? outFile}) => [
     'build',
-    '-ldflags=${config.goLdflags}',
+    '-ldflags=${config.goLdflags}${_versionLdflags()}',
     '-tags=${config.tags}',
     if (target.isLib) '-buildmode=c-shared',
     if (outFile != null) ...['-o', outFile],
   ];
+
+  /// The arguments as they enter the cache fingerprint: identical to the real
+  /// ones except that the build time is left out.
+  ///
+  /// The build time is stamped into every core, so including it would make the
+  /// fingerprint differ from run to run and rebuild an unchanged core - the
+  /// cache would never hit. The revision is in here, so a core whose checkout
+  /// moved does rebuild.
+  List<String> _fingerprintArguments(Target target) => [
+    'build',
+    '-ldflags=${config.goLdflags}${_stampLdflag()}',
+    '-tags=${config.tags}',
+    if (target.isLib) '-buildmode=c-shared',
+  ];
+
+  String _stampLdflag() {
+    final stamp = _readRevision(_corePath);
+    return stamp.isEmpty
+        ? ''
+        : " -X 'github.com/metacubex/mihomo/constant.Revision=$stamp'";
+  }
+
+  /// Stamp the revision and the build time into the core.
+  ///
+  /// The revision is read from the core checkout rather than passed in, so a
+  /// local build carries the same information as a released one and neither
+  /// depends on the caller remembering. Only the revision goes into the cache
+  /// fingerprint; the build time is not a cache input, because the wall clock
+  /// moves between builds and would rebuild a core that has not changed.
+  String _versionLdflags() {
+    final stamp = _readRevision(_corePath);
+    final builtAt = DateTime.now().toUtc().toIso8601String();
+    return [
+      if (stamp.isNotEmpty)
+        " -X 'github.com/metacubex/mihomo/constant.Revision=$stamp'",
+      " -X 'github.com/metacubex/mihomo/constant.BuildTime=$builtAt'",
+    ].join();
+  }
 
   Future<Fingerprint> _calculateFingerprint(Target target) async {
     final env = _buildEnvironment(target);
@@ -144,7 +208,8 @@ class GoBuilder {
       })
       ..addValue('config', config.toFingerprintMap())
       ..addValue('environment', env)
-      ..addValue('arguments', _buildArguments(target));
+      ..addValue('core_revision', _readRevision(_corePath))
+      ..addValue('arguments', _fingerprintArguments(target));
 
     final goEnvResult = runCommand(
       'go',

@@ -70,20 +70,87 @@ class Request {
     );
   }
 
+  /// Run a request, falling back to the other path when the preferred one
+  /// fails.
+  ///
+  /// The hub is reachable both through the core and straight out, and which of
+  /// the two works is not a property of the URL: the proxy can be down, the
+  /// core may not be up yet, or the rule set may send the hub somewhere it
+  /// cannot go, while the direct path is fine - and the reverse holds when the
+  /// network blocks the hub and only the tunnel reaches it. Trying one and then
+  /// the other turns either outage into a slowdown instead of a failure to load
+  /// the profile, so the caller does not have to know which is up.
+  ///
+  /// Only a preference falls back, never an instruction: a caller that hands
+  /// `viaProxy` as an argument is saying which path it wants and gets that path
+  /// or its error, while the hub setting is a default the app is free to work
+  /// around when it cannot be honoured.
+  Future<Response<T>> _withFallback<T>(
+    Future<Response<T>> Function(Dio client) send, {
+    required bool preferredViaProxy,
+    String? what,
+  }) async {
+    final proxy = _clashDio;
+    final direct = _directDio;
+    final order = preferredViaProxy ? [proxy, direct] : [direct, proxy];
+    Object? firstError;
+    for (var i = 0; i < order.length; i++) {
+      try {
+        return await send(order[i]);
+      } catch (e) {
+        final path = identical(order[i], proxy) ? 'proxy' : 'direct';
+        if (i == 0) {
+          firstError = e;
+          commonPrint.log(
+            '${what ?? 'request'}: $path failed '
+            '(${compactError(e)}), trying the other path',
+            logLevel: LogLevel.debug,
+          );
+          continue;
+        }
+        commonPrint.log(
+          '${what ?? 'request'}: $path also failed '
+          '(${compactError(e)}); first error was ${compactError(firstError ?? e)}',
+          logLevel: LogLevel.warning,
+        );
+        rethrow;
+      }
+    }
+    throw StateError('unreachable');
+  }
+
   Future<Response<Uint8List>> getFileResponseForUrl(
     String url, {
     Map<String, String>? headers,
     bool? viaProxy,
   }) async {
     final hub = _hubConnectionFor(url);
-    final client = (viaProxy ?? hub?.viaProxy ?? true) ? _clashDio : _directDio;
+    // An explicit argument is followed exactly; only the hub's own preference
+    // is allowed to fall back, because that one is a default rather than an
+    // instruction. Falling back past an explicit choice would send a request
+    // somewhere the caller said not to.
+    final requested = viaProxy;
+    final headersFor = headers ?? hub?.headers;
     try {
-      return await client.get<Uint8List>(
-        url,
-        options: Options(
-          responseType: ResponseType.bytes,
-          headers: headers ?? hub?.headers,
+      if (requested != null) {
+        return await (requested ? _clashDio : _directDio).get<Uint8List>(
+          url,
+          options: Options(
+            responseType: ResponseType.bytes,
+            headers: headersFor,
+          ),
+        );
+      }
+      return await _withFallback<Uint8List>(
+        (client) => client.get<Uint8List>(
+          url,
+          options: Options(
+            responseType: ResponseType.bytes,
+            headers: headersFor,
+          ),
         ),
+        preferredViaProxy: hub?.viaProxy ?? true,
+        what: 'getFileResponseForUrl $url',
       );
     } catch (e) {
       commonPrint.log(
@@ -94,11 +161,23 @@ class Request {
     }
   }
 
-  Future<Response<String>> getTextResponseForUrl(String url) async {
+  Future<Response<String>> getTextResponseForUrl(
+    String url, {
+    Map<String, String>? headers,
+  }) async {
+    final hub = _hubConnectionFor(url);
+    final preferredViaProxy = hub?.viaProxy ?? true;
     try {
-      return await _clashDio.get<String>(
-        url,
-        options: Options(responseType: ResponseType.plain),
+      return await _withFallback<String>(
+        (client) => client.get<String>(
+          url,
+          options: Options(
+            responseType: ResponseType.plain,
+            headers: headers ?? hub?.headers,
+          ),
+        ),
+        preferredViaProxy: preferredViaProxy,
+        what: 'getTextResponseForUrl $url',
       );
     } catch (e) {
       commonPrint.log(
@@ -117,13 +196,19 @@ class Request {
     if (url.isEmpty) {
       return null;
     }
+    final setting = _read?.call(appSettingProvider);
+    final preferredViaProxy = setting?.hubViaProxy ?? true;
     try {
-      final response = await _clashDio.get<Map<String, dynamic>>(
-        url,
-        options: Options(
-          responseType: ResponseType.json,
-          headers: hubAuthHeaders(hubToken),
+      final response = await _withFallback<Map<String, dynamic>>(
+        (client) => client.get<Map<String, dynamic>>(
+          url,
+          options: Options(
+            responseType: ResponseType.json,
+            headers: hubAuthHeaders(hubToken),
+          ),
         ),
+        preferredViaProxy: preferredViaProxy,
+        what: 'getHubDevices',
       );
       return parseHubDevices(response.data);
     } catch (e) {

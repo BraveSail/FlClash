@@ -5,6 +5,53 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'generated/core.freezed.dart';
 part 'generated/core.g.dart';
 
+/// What the running core says about its own build.
+///
+/// Plain rather than freezed: it is read from the core and never written back,
+/// so it earns no code generation. It is surfaced next to the app's own version
+/// because a device on an older core behaves differently from its peers in ways
+/// the app version does not show - mesh nodes on mismatched cores fail each
+/// other's handshakes and the failure names no build.
+class CoreVersion {
+  final String version;
+  final String? revision;
+  final String? buildTime;
+
+  const CoreVersion({required this.version, this.revision, this.buildTime});
+
+  factory CoreVersion.fromJson(Map<String, dynamic> json) => CoreVersion(
+    version: json['version']?.toString() ?? '',
+    revision: json['revision']?.toString(),
+    buildTime: json['buildTime']?.toString(),
+  );
+
+  /// One line for the about page: the version, then the revision when the
+  /// build carries one, so a device on a hand-built core is distinguishable
+  /// from one on a release.
+  ///
+  /// A core too old to carry either still reads as its version rather than as
+  /// an empty line, which is what a device that has not been updated looks
+  /// like.
+  String get display {
+    final parts = <String>[version];
+    final rev = revision;
+    if (rev != null && rev.isNotEmpty && rev != 'unknown') {
+      parts.add(rev);
+    }
+    return parts.join(' · ');
+  }
+
+  /// When the core was built, for a tooltip. Null when the build carries no
+  /// stamp, which is every core built before this was recorded.
+  String? get builtAt {
+    final stamp = buildTime;
+    if (stamp == null || stamp.isEmpty || stamp == 'unknown time') {
+      return null;
+    }
+    return stamp;
+  }
+}
+
 @freezed
 abstract class SetupParams with _$SetupParams {
   const factory SetupParams({

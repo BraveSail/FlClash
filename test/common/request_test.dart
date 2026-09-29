@@ -13,9 +13,11 @@ void main() {
 
   test('getTextResponseForUrl propagates the typed DioException', () async {
     // flutter_test's mocked HttpClient answers every request with HTTP 400,
-    // which Dio surfaces as a badResponse DioException.
+    // which Dio surfaces as a badResponse DioException. A client of this
+    // test's own: an adapter keeps the HttpClient it built on its first
+    // request, so the shared one would carry this mock into later tests.
     await expectLater(
-      request.getTextResponseForUrl('http://127.0.0.1/anything'),
+      Request().getTextResponseForUrl('http://127.0.0.1/anything'),
       throwsA(
         isA<DioException>().having(
           (e) => e.type,
@@ -28,7 +30,7 @@ void main() {
 
   test('getFileResponseForUrl propagates the typed DioException', () async {
     await expectLater(
-      request.getFileResponseForUrl('http://127.0.0.1/anything'),
+      Request().getFileResponseForUrl('http://127.0.0.1/anything'),
       throwsA(
         isA<DioException>().having(
           (e) => e.type,
@@ -43,6 +45,12 @@ void main() {
     late HttpServer server;
     late String origin;
     late String? authorization;
+
+    // Each test takes its own Request: an adapter keeps the HttpClient it built
+    // on its first request, so the shared one would answer from whatever
+    // override was in place when it was first used - and the suite's mocked
+    // client answers 400 to everything.
+    Request freshRequest() => Request();
 
     setUp(() async {
       // The suite's mocked HttpClient would answer 400 to everything.
@@ -72,7 +80,7 @@ void main() {
     });
 
     test('sends the headers it was given on a direct connection', () async {
-      final response = await request.getFileResponseForUrl(
+      final response = await freshRequest().getFileResponseForUrl(
         '$origin/profile?id=abc',
         headers: const {'Authorization': 'Bearer explicit'},
         viaProxy: false,
@@ -83,7 +91,10 @@ void main() {
     });
 
     test('works without headers', () async {
-      await request.getFileResponseForUrl('$origin/profile', viaProxy: false);
+      await freshRequest().getFileResponseForUrl(
+        '$origin/profile',
+        viaProxy: false,
+      );
 
       expect(authorization, isNull);
     });
@@ -101,9 +112,9 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
-      request.attach(container.read);
+      final hubRequest = Request()..attach(container.read);
 
-      await request.getFileResponseForUrl('$origin/profile?id=abc');
+      await hubRequest.getFileResponseForUrl('$origin/profile?id=abc');
 
       expect(authorization, 'Bearer secret');
     });
@@ -121,22 +132,21 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
-      request.attach(container.read);
+      final hubRequest = Request()..attach(container.read);
 
-      await request.getFileResponseForUrl('$origin/profile', viaProxy: false);
+      await hubRequest.getFileResponseForUrl('$origin/profile', viaProxy: false);
 
       expect(authorization, isNull);
     });
   });
 
-  group('the direct connection ignores the app-wide proxy', () {
+  group('the hub setting routes the request and falls back', () {
     late HttpServer server;
     late String origin;
     late HttpOverrides? previous;
 
     setUp(() async {
       previous = HttpOverrides.current;
-      HttpOverrides.global = _DeadProxyOverrides();
       server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       origin = 'http://${server.address.host}:${server.port}';
       unawaited(
@@ -156,14 +166,14 @@ void main() {
 
     // An adapter keeps the HttpClient it built on its first request, so each
     // test needs its own client or it answers from before the override.
-    Request freshRequest() {
+    Request freshRequest({required bool viaProxy}) {
       final container = ProviderContainer(
         overrides: [
           appSettingProvider.overrideWithBuild(
             (_, _) => AppSettingProps(
               hubUrl: origin,
               hubToken: 'secret',
-              hubViaProxy: false,
+              hubViaProxy: viaProxy,
             ),
           ),
         ],
@@ -173,30 +183,37 @@ void main() {
     }
 
     test('a hub told not to use the proxy reaches the origin', () async {
-      final response = await freshRequest().getFileResponseForUrl(
-        '$origin/profile?id=abc',
-      );
+      final response = await freshRequest(
+        viaProxy: false,
+      ).getFileResponseForUrl('$origin/profile?id=abc');
 
       expect(String.fromCharCodes(response.data!), 'ok');
     });
 
-    test('a hub told to use the proxy goes through it', () async {
-      final container = ProviderContainer(
-        overrides: [
-          appSettingProvider.overrideWithBuild(
-            (_, _) => AppSettingProps(
-              hubUrl: origin,
-              hubToken: 'secret',
-              hubViaProxy: true,
-            ),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
-      final hubRequest = Request()..attach(container.read);
+    // The setting is a preference, not an instruction: a dead proxy must not
+    // take the hub away when the origin is reachable straight out. This is the
+    // whole point of the fallback - the profile still loads while the core is
+    // down or its proxy is misconfigured.
+    test('a dead proxy falls back to the direct connection', () async {
+      HttpOverrides.global = _DeadProxyOverrides();
+
+      final response = await freshRequest(
+        viaProxy: true,
+      ).getFileResponseForUrl('$origin/profile?id=abc');
+
+      expect(String.fromCharCodes(response.data!), 'ok');
+    });
+
+    // An explicit argument is an instruction, so it is followed exactly: a
+    // caller that says "direct" is not sent through the proxy it avoided, even
+    // when that would have worked.
+    test('an explicit choice is followed instead of falling back', () async {
+      HttpOverrides.global = _DeadProxyOverrides();
 
       await expectLater(
-        hubRequest.getFileResponseForUrl('$origin/profile?id=abc'),
+        freshRequest(
+          viaProxy: true,
+        ).getFileResponseForUrl('$origin/profile?id=abc', viaProxy: true),
         throwsA(isA<DioException>()),
       );
     });

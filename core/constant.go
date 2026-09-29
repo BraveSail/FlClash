@@ -15,6 +15,13 @@ type InitParams struct {
 	Version int    `json:"version"`
 }
 
+// VersionInfo is what the core reports about its own build.
+type VersionInfo struct {
+	Version   string `json:"version"`
+	Revision  string `json:"revision"`
+	BuildTime string `json:"buildTime"`
+}
+
 type SetupParams struct {
 	SelectedMap map[string]string `json:"selected-map"`
 	TestURL     string            `json:"test-url"`
@@ -115,6 +122,7 @@ const (
 	setupConfigMethod              CoreMethod = "setupConfig"
 	getConfigMethod                CoreMethod = "getConfig"
 	clearEffectMethod              CoreMethod = "clearEffect"
+	getVersionMethod               CoreMethod = "getVersion"
 )
 
 type CoreMethod string
