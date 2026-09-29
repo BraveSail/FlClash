@@ -49,11 +49,16 @@ func handleInitClash(params *InitParams) bool {
 	return true
 }
 
+// The kernel binds the listeners while it applies the configuration, so a host
+// asking to start them only records the intent and drops what a stopped
+// resolver was holding. FlClash used to drive the listener creation from here -
+// the app called startListener, and only then did anything bind - which is what
+// left a headless core (or a device whose host never calls it) listening on
+// nothing. Creating them is no longer the host's job, so this call is gone.
 func handleStartListener() bool {
 	configMu.Lock()
 	defer configMu.Unlock()
 	isRunning.Store(true)
-	updateListeners(currentConfig)
 	resolver.ResetConnection()
 	return true
 }
