@@ -62,6 +62,58 @@ void main() {
     });
   });
 
+  group('applyHubConnection', () {
+    test('points the mesh block at the hub', () {
+      final rawConfig = <String, dynamic>{
+        'mesh': {
+          'proxy': {'type': 'vless'},
+          'devices': [
+            {'name': 'pc'},
+          ],
+        },
+      };
+
+      applyHubConnection(rawConfig, 'https://hub.example/', ' secret ');
+
+      final mesh = rawConfig['mesh'] as Map;
+      expect(mesh['directory-url'], 'https://hub.example');
+      expect(mesh['directory-token'], 'secret');
+      expect(mesh['devices'], isA<List>());
+    });
+
+    test('the settings win over the values the profile carries', () {
+      final rawConfig = <String, dynamic>{
+        'mesh': {
+          'directory-url': 'https://own.example',
+          'directory-token': 'own-token',
+        },
+      };
+
+      applyHubConnection(rawConfig, 'https://hub.example', 'secret');
+
+      final mesh = rawConfig['mesh'] as Map;
+      expect(mesh['directory-url'], 'https://hub.example');
+      expect(mesh['directory-token'], 'secret');
+    });
+
+    test('leaves a profile without a mesh block alone', () {
+      final rawConfig = <String, dynamic>{'proxies': <dynamic>[]};
+
+      applyHubConnection(rawConfig, 'https://hub.example', 'secret');
+
+      expect(rawConfig.keys, ['proxies']);
+    });
+
+    test('does nothing while the hub is not configured', () {
+      final rawConfig = <String, dynamic>{'mesh': <String, dynamic>{}};
+
+      applyHubConnection(rawConfig, '', 'secret');
+      applyHubConnection(rawConfig, 'https://hub.example', '');
+
+      expect(rawConfig['mesh'], isEmpty);
+    });
+  });
+
   group('hubProfileWatchUrl', () {
     test('addresses the socket and carries the revision it runs', () {
       expect(
@@ -109,304 +161,233 @@ void main() {
     });
   });
 
-  group('hubMeshUrl', () {
-    test('names the device the hub answers for', () {
+  group('hubDevicesUrl', () {
+    test('addresses the device list on the hub origin', () {
       expect(
-        hubMeshUrl('https://hub.example/', 'aaaa1111'),
-        'https://hub.example/api/mesh?id=aaaa1111',
+        hubDevicesUrl('https://hub.example/'),
+        'https://hub.example/api/devices',
       );
-      expect(hubMeshUrl('', 'aaaa1111'), '');
-      expect(hubMeshUrl('https://hub.example', ''), '');
+      expect(hubDevicesUrl(''), '');
     });
   });
 
-  group('parseMeshPlan', () {
-    test('reads the credentials and the devices the hub answered', () {
-      final plan = parseMeshPlan({
-        'id': 'aaaa1111',
-        'port': 23333,
-        'uuid': 'uuid-value',
-        'decryption': 'server-half',
-        'encryption': 'client-half',
-        'devices': [
+  group('parseHubDevices', () {
+    test('reads the name, the id and the port of every device', () {
+      final devices = parseHubDevices({
+        'nodes': [
+          {'id': 'bbbb2222', 'hostname': 'gt7', 'port': 9443},
           {
-            'id': 'bbbb2222',
-            'name': 'PC',
-            'addr': '2408:8256:d284:feb7:485:945b:beed:f9fb',
-            'port': 9443,
-          },
-          {
-            'id': 'cccc3333',
-            'name': 'gt7',
-            'addr': '2408:8256:d284:feb7:ee92:eff5:3fd6:7819',
+            'id': 'aaaa1111',
+            'alias': 'PC',
+            'hostname': 'desktop',
             'port': 8443,
-            'domain': 'gt7.lan',
           },
         ],
       });
 
-      expect(plan, isNotNull);
-      expect(plan!.port, 23333);
-      expect(plan.uuid, 'uuid-value');
-      expect(plan.decryption, 'server-half');
-      expect(plan.encryption, 'client-half');
-      expect(plan.devices, hasLength(2));
-      expect(plan.devices.first.id, 'bbbb2222');
-      expect(plan.devices.first.port, 9443);
-      expect(plan.devices.last.domain, 'gt7.lan');
+      // Ordered by id, so every device of the mesh expands the same list in
+      // the same order.
+      expect(devices.map((d) => d.id), ['aaaa1111', 'bbbb2222']);
+      expect(devices.first.name, 'PC');
+      expect(devices.first.port, 8443);
+      expect(devices.last.name, 'gt7');
     });
 
-    test('has nothing to dial without a user to speak as', () {
-      expect(parseMeshPlan({'id': 'aaaa1111', 'devices': []}), isNull);
-      expect(parseMeshPlan({'uuid': '  '}), isNull);
-      expect(parseMeshPlan(null), isNull);
-      expect(parseMeshPlan('nope'), isNull);
+    test('prefers the alias, then the host name, then the id', () {
+      final devices = parseHubDevices({
+        'nodes': [
+          {'id': 'aaaa1111', 'alias': 'PC', 'hostname': 'desktop'},
+          {'id': 'bbbb2222', 'hostname': 'gt7'},
+          {'id': 'cccc3333'},
+        ],
+      });
+
+      expect(devices.map((d) => d.name), ['PC', 'gt7', 'cccc3333']);
     });
 
-    test('falls back to the default port when the hub names none', () {
-      final plan = parseMeshPlan({'uuid': 'uuid-value'});
-      expect(plan!.port, meshDefaultPort);
-      expect(plan.devices, isEmpty);
-    });
-  });
+    test('falls back to the id for a name the core would refuse', () {
+      final devices = parseHubDevices({
+        'nodes': [
+          {'id': 'aaaa1111', 'hostname': 'two words'},
+          {'id': 'bbbb2222', 'hostname': 'x' * 64},
+        ],
+      });
 
-  group('parseMeshDevices', () {
-    test('keeps a device only when it can be dialled', () {
-      final warnings = <String>[];
-      final devices = parseMeshDevices([
-        {
-          'id': 'aaaa1111',
-          'name': 'PC',
-          'addr': '2408:8256:d284:feb7:485:945b:beed:f9fb',
-        },
-        {'id': 'bbbb2222', 'name': 'no-address'},
-        {
-          'id': 'bad id',
-          'name': 'odd',
-          'addr': '2408:8256:d284:feb7:2a56:3aff:fe62:ef40',
-        },
-      ], warnings: warnings);
-
-      expect(devices, hasLength(1));
-      expect(devices.single.name, 'PC');
-      expect(warnings, hasLength(1));
+      expect(devices.map((d) => d.name), ['aaaa1111', 'bbbb2222']);
     });
 
-    test('carries a port written on the address, and a bracketed v6 host', () {
-      final devices = parseMeshDevices([
-        {'id': 'aaaa1111', 'name': 'PC', 'addr': '[fdfe::1]:9443'},
-        {'id': 'bbbb2222', 'name': 'gt7', 'addr': 'host.example:8443'},
-      ]);
+    test('keeps two devices from sharing one name', () {
+      final devices = parseHubDevices({
+        'nodes': [
+          {'id': 'aaaa1111', 'hostname': 'pc'},
+          {'id': 'bbbb2222', 'hostname': 'pc'},
+        ],
+      });
 
-      expect(devices, hasLength(2));
-      expect(devices.first.addr, '[fdfe::1]');
-      expect(devices.first.port, 9443);
-      expect(devices.last.addr, 'host.example');
-      expect(devices.last.port, 8443);
+      expect(devices.map((d) => d.name), ['pc', 'bbbb2222']);
     });
 
-    test('drops a domain the core would refuse', () {
-      final devices = parseMeshDevices([
-        {
-          'id': 'aaaa1111',
-          'name': 'PC',
-          'addr': '2408:8256:d284:feb7:485:945b:beed:f9fb',
-          'domain': 'not a domain',
-        },
-        {
-          'id': 'bbbb2222',
-          'name': 'gt7',
-          'addr': '2408:8256:d284:feb7:ee92:eff5:3fd6:7819',
-          'domain': 'gt7.lan',
-        },
-      ]);
+    test('drops a record no client could ask about', () {
+      final devices = parseHubDevices({
+        'nodes': [
+          {'hostname': 'no id'},
+          {'id': 'bad id'},
+          {'id': 'aaaa1111', 'hostname': 'pc'},
+        ],
+      });
 
-      expect(devices, hasLength(2));
-      expect(devices.first.domain, isEmpty);
-      expect(devices.last.domain, 'gt7.lan');
+      expect(devices.map((d) => d.id), ['aaaa1111']);
     });
 
-    test('reaches two devices of one name by their ids', () {
-      final devices = parseMeshDevices([
-        {
-          'id': 'aaaa1111',
-          'name': 'dup',
-          'addr': '2408:8256:d284:feb7:485:945b:beed:f9fb',
-        },
-        {
-          'id': 'bbbb2222',
-          'name': 'dup',
-          'addr': '2408:8256:d284:feb7:ee92:eff5:3fd6:7819',
-        },
-      ]);
+    test('reads the domain a rule reaches the device by', () {
+      final devices = parseHubDevices({
+        'nodes': [
+          {'id': 'aaaa1111', 'hostname': 'pc', 'domain': 'pc.lan'},
+          {'id': 'bbbb2222', 'hostname': 'gt7'},
+        ],
+      });
 
-      expect(devices, hasLength(2));
-      expect(devices.map((d) => d.name), containsAll(['dup', 'bbbb2222']));
+      expect(devices.first.domain, 'pc.lan');
+      // A device the hub holds no domain for keeps its place: the core writes
+      // no rule for it, and it is still reached by its name.
+      expect(devices.last.domain, isEmpty);
+    });
+
+    test('normalizes a domain and drops one the core would refuse', () {
+      final devices = parseHubDevices({
+        'nodes': [
+          {'id': 'aaaa1111', 'domain': 'PC.LAN'},
+          {'id': 'bbbb2222', 'domain': 'has spaces'},
+          {'id': 'cccc3333', 'domain': '-bad.example'},
+        ],
+      });
+
+      // The core matches the name a connection asked for, and a domain is
+      // case-insensitive: lower case here is what makes the rule match.
+      expect(devices.first.domain, 'pc.lan');
+      // A domain only decides which device a name reaches, so a bad one costs
+      // the device its domain, not its place in the mesh.
+      expect(devices[1].domain, isEmpty);
+      expect(devices[2].domain, isEmpty);
     });
 
     test(
-      'brackets a bare IPv6 address instead of reading a port out of it',
+      'keeps a device without a usable port and answers an unreadable payload',
       () {
-        // The hub reports the address a peer is reached at without brackets;
-        // every group after the first would otherwise parse as a port and the
-        // device would be dropped.
-        final devices = parseMeshDevices([
-          {
-            'id': 'aaaa1111',
-            'name': 'router',
-            'addr': '2408:8256:d284:feb7:2a56:3aff:fe62:ef40',
-            'port': 23333,
-          },
-        ]);
+        final devices = parseHubDevices({
+          'nodes': [
+            {'id': 'aaaa1111', 'port': 70000},
+            {'id': 'bbbb2222'},
+          ],
+        });
 
-        expect(devices, hasLength(1));
-        expect(
-          devices.single.addr,
-          '[2408:8256:d284:feb7:2a56:3aff:fe62:ef40]',
-        );
-        expect(devices.single.port, 23333);
+        expect(devices.map((d) => d.port), [0, 0]);
+        expect(parseHubDevices(null), isEmpty);
+        expect(parseHubDevices({'nodes': 'nope'}), isEmpty);
       },
     );
   });
 
-  group('expandMesh', () {
-    final plan = parseMeshPlan({
-      'id': 'aaaa1111',
-      'port': 23333,
-      'uuid': 'uuid-value',
-      'decryption': 'server-half',
-      'encryption': 'client-half',
-      'devices': [
-        {
-          'id': 'aaaa1111',
-          'name': 'PC',
-          'addr': '2408:8256:d284:feb7:485:945b:beed:f9fb',
-          'domain': 'pc.lan',
-        },
-        {
-          'id': 'bbbb2222',
-          'name': 'gt7',
-          'addr': '2408:8256:d284:feb7:ee92:eff5:3fd6:7819',
-          'port': 9443,
-          'domain': 'gt7.lan',
-        },
-      ],
-    });
-
-    test('serves the port the hub named and dials every other device', () {
-      final expansion = expandMesh(
-        plan: plan,
-        legacy: null,
-        selfId: 'aaaa1111',
-      );
-
-      expect(expansion.expanded, isTrue);
-      expect(expansion.listener!['name'], meshListenerName);
-      expect(expansion.listener!['port'], 23333);
-      expect(expansion.listener!['decryption'], 'server-half');
-      expect(expansion.listener!['listen'], '::');
-
-      // The device the answer belongs to is not dialled.
-      expect(expansion.proxies, hasLength(1));
-      final peer = expansion.proxies.single;
-      expect(peer['name'], 'gt7');
-      expect(peer['server'], '[2408:8256:d284:feb7:ee92:eff5:3fd6:7819]');
-      expect(peer['port'], 9443);
-      expect(peer['uuid'], 'uuid-value');
-      expect(peer['encryption'], 'client-half');
-      expect(peer['udp'], true);
-
-      expect(expansion.rules, ['DOMAIN,gt7.lan,gt7']);
-    });
-
-    test('carries no mesh block over when the answer is whole', () {
+  group('applyHubDevices', () {
+    test('writes the list and the flag the core expands from', () {
       final rawConfig = <String, dynamic>{
-        'mesh': {'directory-url': 'https://hub.example'},
-        'proxies': [
-          {'name': 'written', 'type': 'ss'},
-        ],
-        'rules': ['MATCH,DIRECT'],
+        'mesh': <String, dynamic>{'directory-url': 'https://hub.example'},
       };
 
-      applyMeshExpansion(
+      applyHubDevices(
         rawConfig,
-        expansion: expandMesh(plan: plan, legacy: null, selfId: 'aaaa1111'),
-      );
-
-      expect(rawConfig.containsKey('mesh'), isFalse);
-      // The profile's own entries keep working behind the peers.
-      expect(rawConfig['listeners'], hasLength(1));
-      expect(rawConfig['proxies'], hasLength(2));
-      expect(rawConfig['proxies'].last['name'], 'written');
-      expect(rawConfig['rules'], ['DOMAIN,gt7.lan,gt7', 'MATCH,DIRECT']);
-    });
-
-    test('is left alone when the hub answered nothing and wrote nothing', () {
-      final expansion = expandMesh(plan: null, legacy: null);
-      expect(expansion.expanded, isFalse);
-      expect(expansion.proxies, isEmpty);
-    });
-
-    test('reads the block a profile wrote itself', () {
-      final expansion = expandMesh(
-        plan: null,
-        legacy: {
-          'directory-id': 'aaaa1111',
-          'proxy': {'uuid': 'self-uuid', 'encryption': 'self-client'},
-          'listener': {'decryption': 'self-server'},
-          'devices': [
-            {
-              'id': 'aaaa1111',
-              'name': 'PC',
-              'addr': '2408:8256:d284:feb7:485:945b:beed:f9fb',
-            },
-            {
-              'id': 'bbbb2222',
-              'name': 'gt7',
-              'addr': '2408:8256:d284:feb7:ee92:eff5:3fd6:7819',
-              'port': 9443,
-            },
-          ],
-        },
-      );
-
-      expect(expansion.expanded, isTrue);
-      expect(expansion.listener!['decryption'], 'self-server');
-      expect(expansion.proxies, hasLength(1));
-      expect(expansion.proxies.single['encryption'], 'self-client');
-      expect(expansion.proxies.single['port'], 9443);
-    });
-
-    test('keeps the whole mesh when a device cannot be dialled', () {
-      // A partial expansion would take the block away and cost the profile
-      // every rule that reaches a peer, so the core is left to resolve them.
-      final partial = parseMeshPlan({
-        'port': 23333,
-        'uuid': 'uuid-value',
-        'encryption': 'client-half',
-        'devices': [
-          {
-            'id': 'bbbb2222',
-            'name': 'gt7',
-            'addr': '2408:8256:d284:feb7:ee92:eff5:3fd6:7819',
-          },
-          {'id': 'cccc3333', 'name': 'no-address'},
+        devices: const [
+          HubDevice(name: 'PC', id: 'aaaa1111'),
+          HubDevice(name: 'gt7', id: 'bbbb2222', port: 9443),
         ],
-      });
-
-      final expansion = expandMesh(
-        plan: partial,
-        legacy: null,
-        selfId: 'aaaa1111',
       );
-      expect(expansion.expanded, isFalse);
-      expect(expansion.warnings.join(' '), contains('no address'));
+
+      final mesh = rawConfig['mesh'] as Map;
+      expect(mesh['directory-resolved'], isTrue);
+      expect(mesh['devices'], [
+        {'name': 'PC', 'id': 'aaaa1111'},
+        {'name': 'gt7', 'id': 'bbbb2222', 'port': 9443},
+      ]);
+      expect(mesh.containsKey('directory-proxy'), isFalse);
     });
 
-    test('says so when nothing came with a user', () {
-      final expansion = expandMesh(plan: null, legacy: {'devices': []});
-      expect(expansion.expanded, isFalse);
-      expect(expansion.warnings.join(' '), contains('no user'));
+    test('writes the domain so the core can write the rule from it', () {
+      final rawConfig = <String, dynamic>{
+        'mesh': <String, dynamic>{'directory-url': 'https://hub.example'},
+      };
+
+      applyHubDevices(
+        rawConfig,
+        devices: const [
+          HubDevice(name: 'PC', id: 'aaaa1111', domain: 'pc.lan'),
+          HubDevice(name: 'gt7', id: 'bbbb2222', domain: 'gt7.lan'),
+        ],
+      );
+
+      // The profile writes no rule for a device: the core writes one per
+      // domain here, so a device renamed on the dashboard never leaves a rule
+      // pointing at nothing.
+      expect((rawConfig['mesh'] as Map)['devices'], [
+        {'name': 'PC', 'id': 'aaaa1111', 'domain': 'pc.lan'},
+        {'name': 'gt7', 'id': 'bbbb2222', 'domain': 'gt7.lan'},
+      ]);
+    });
+
+    test('leaves the domain out when the hub holds none', () {
+      final rawConfig = <String, dynamic>{
+        'mesh': <String, dynamic>{'directory-url': 'https://hub.example'},
+      };
+
+      applyHubDevices(
+        rawConfig,
+        devices: const [HubDevice(name: 'PC', id: 'aaaa1111')],
+      );
+
+      expect((rawConfig['mesh'] as Map)['devices'], [
+        {'name': 'PC', 'id': 'aaaa1111'},
+      ]);
+    });
+
+    test('an empty list is still a resolved list', () {
+      final rawConfig = <String, dynamic>{
+        'mesh': <String, dynamic>{'directory-url': 'https://hub.example'},
+      };
+
+      applyHubDevices(rawConfig, devices: const []);
+
+      final mesh = rawConfig['mesh'] as Map;
+      // The core takes this as "the hub holds no device" and reads nothing
+      // while it parses, rather than failing the start on a blocked network.
+      expect(mesh['directory-resolved'], isTrue);
+      expect(mesh['devices'], isEmpty);
+    });
+
+    test('carries the proxy the runtime requests go through', () {
+      final rawConfig = <String, dynamic>{
+        'mesh': <String, dynamic>{'directory-url': 'https://hub.example'},
+      };
+
+      applyHubDevices(
+        rawConfig,
+        devices: const [HubDevice(name: 'PC', id: 'aaaa1111')],
+        directoryProxy: 'http://127.0.0.1:7890',
+      );
+
+      expect(
+        (rawConfig['mesh'] as Map)['directory-proxy'],
+        'http://127.0.0.1:7890',
+      );
+    });
+
+    test('leaves a profile without a mesh block alone', () {
+      final rawConfig = <String, dynamic>{'proxies': <dynamic>[]};
+
+      applyHubDevices(
+        rawConfig,
+        devices: const [HubDevice(name: 'PC', id: 'aaaa1111')],
+      );
+
+      expect(rawConfig.keys, ['proxies']);
     });
   });
 }

@@ -109,30 +109,26 @@ class Request {
     }
   }
 
-  /// Reads this device's mesh from the hub. Null means it could not be read at
-  /// all: the caller then expands whatever the profile carries itself rather
-  /// than failing a start on a hub that is merely out of reach.
-  Future<MeshPlan?> getHubMesh(String hubUrl, String hubToken) async {
-    final url = hubMeshUrl(hubUrl, await deviceId());
+  /// Reads the device list from the hub. Null means the list could not be
+  /// read: the caller then leaves the mesh block unresolved rather than
+  /// freezing an empty one, so the core keeps reading it itself when it can.
+  Future<List<HubDevice>?> getHubDevices(String hubUrl, String hubToken) async {
+    final url = hubDevicesUrl(hubUrl);
     if (url.isEmpty) {
       return null;
     }
-    // The hub settings decide whether this request goes through the app's own
-    // proxy, the way they do for the profile itself.
-    final hub = _hubConnectionFor(url);
-    final client = (hub?.viaProxy ?? true) ? _clashDio : _directDio;
     try {
-      final response = await client.get<Map<String, dynamic>>(
+      final response = await _clashDio.get<Map<String, dynamic>>(
         url,
         options: Options(
           responseType: ResponseType.json,
-          headers: hub?.headers ?? hubAuthHeaders(hubToken),
+          headers: hubAuthHeaders(hubToken),
         ),
       );
-      return parseMeshPlan(response.data);
+      return parseHubDevices(response.data);
     } catch (e) {
       commonPrint.log(
-        'getHubMesh error ${compactError(e)}',
+        'getHubDevices error ${compactError(e)}',
         logLevel: LogLevel.warning,
       );
       return null;

@@ -28,7 +28,6 @@ export 'layout.dart';
 export 'link.dart';
 export 'lock.dart';
 export 'measure.dart';
-export 'mesh.dart';
 export 'mixin.dart';
 export 'navigator.dart';
 export 'network.dart';

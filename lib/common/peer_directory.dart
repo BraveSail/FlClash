@@ -1,7 +1,3 @@
-/// Names this device to the directory outbounds a profile may still carry by
-/// hand: `peer-directory` reports under it and `tailnet-peer` asks for peers
-/// with it. The mesh block takes no part in this - the app expands one into
-/// plain outbounds and never writes it back.
 void applyDirectoryId(
   Map<String, dynamic> rawConfig,
   String id, {
@@ -14,6 +10,16 @@ void applyDirectoryId(
   }
   final deviceName = name.trim();
   final deviceOs = os.trim();
+  final mesh = rawConfig['mesh'];
+  if (mesh is Map) {
+    mesh['directory-id'] = trimmed;
+    if (deviceName.isNotEmpty) {
+      mesh['device-name'] = deviceName;
+    }
+    if (deviceOs.isNotEmpty) {
+      mesh['device-os'] = deviceOs;
+    }
+  }
   final proxies = rawConfig['proxies'];
   if (proxies is! List) {
     return;

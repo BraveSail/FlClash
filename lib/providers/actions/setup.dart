@@ -278,35 +278,67 @@ class SetupAction extends _$SetupAction {
     return result != _SetupTaskResult.failed;
   }
 
-  Future<void> _applyHubMesh(
+  /// Fills the mesh block's device list from the hub, and points the runtime's
+  /// own directory requests at the app's proxy when the user asked for one.
+  ///
+  /// The list is read here rather than by the core because the core parses the
+  /// configuration before the tunnel carrying that proxy exists: a device
+  /// whose network resets a direct connection to the hub would otherwise fail
+  /// to start. A list that cannot be read leaves the block unresolved, and the
+  /// core then reads it itself the way it did before this existed.
+  Future<void> _applyHubMeshDevices(
     Map<String, dynamic> rawConfig, {
     required (String, String, bool) hubSetting,
+    required int mixedPort,
+    required List<String> credentials,
   }) async {
-    final (hubUrl, hubToken, _) = hubSetting;
-    final legacy = rawConfig['mesh'];
-    if (!isHubEnabled(hubUrl, hubToken) && legacy == null) {
+    final (hubUrl, hubToken, hubViaProxy) = hubSetting;
+    final mesh = rawConfig['mesh'];
+    if (!isHubEnabled(hubUrl, hubToken) || mesh is! Map) {
       return;
     }
-    final plan = isHubEnabled(hubUrl, hubToken)
-        ? await request.getHubMesh(hubUrl, hubToken)
-        : null;
-    final expansion = expandMesh(
-      plan: plan,
-      legacy: legacy,
-      selfId: await deviceId(),
-    );
-    applyMeshExpansion(rawConfig, expansion: expansion);
-    if (expansion.warnings.isNotEmpty) {
-      commonPrint.log(
-        'mesh: ${expansion.warnings.join('; ')}',
-        logLevel: LogLevel.warning,
-      );
+    final devices = await request.getHubDevices(hubUrl, hubToken);
+    if (devices == null) {
+      return;
     }
-    commonPrint.log(
-      'mesh: ${expansion.devices} device(s), ${expansion.proxies.length} '
-      'peer(s), ${expansion.rules.length} domain rule(s)'
-      '${plan == null ? ' (read from the profile; the hub answered nothing)' : ''}',
+    applyHubDevices(
+      rawConfig,
+      devices: devices,
+      directoryProxy: hubViaProxy
+          ? _hubDirectoryProxy(mixedPort, credentials)
+          : '',
     );
+  }
+
+  /// The proxy the core's directory requests go through: the app's own mixed
+  /// port, which serves HTTP, with the credentials the inbound requires. Each
+  /// half of the credentials is percent-encoded on its own - encoding the pair
+  /// whole would turn the colon that separates them into part of the user
+  /// name, and the proxy would reject the request.
+  String _hubDirectoryProxy(int mixedPort, List<String> credentials) {
+    final userInfo = _encodeCredentials(credentials);
+    return Uri(
+      scheme: 'http',
+      userInfo: userInfo,
+      host: localhost,
+      port: mixedPort,
+    ).toString();
+  }
+
+  /// Percent-encodes one `username:password` pair, keeping the colon that
+  /// separates them as the separator it is.
+  String _encodeCredentials(List<String> credentials) {
+    if (credentials.isEmpty) {
+      return '';
+    }
+    final credential = credentials.first;
+    final separator = credential.indexOf(':');
+    if (separator < 0) {
+      return Uri.encodeComponent(credential);
+    }
+    final user = Uri.encodeComponent(credential.substring(0, separator));
+    final password = Uri.encodeComponent(credential.substring(separator + 1));
+    return '$user:$password';
   }
 
   Future<_SetupTaskResult> _runSetup({
@@ -393,7 +425,13 @@ class SetupAction extends _$SetupAction {
         (state) => (state.hubUrl, state.hubToken, state.hubViaProxy),
       ),
     );
-    await _applyHubMesh(rawConfig, hubSetting: hubSetting);
+    applyHubConnection(rawConfig, hubSetting.$1, hubSetting.$2);
+    await _applyHubMeshDevices(
+      rawConfig,
+      hubSetting: hubSetting,
+      mixedPort: patchConfig.mixedPort,
+      credentials: networkSetting.authentication.credentials,
+    );
     final directory = await appPath.profilesPath;
     final res = makeRealProfileTask(
       MakeRealProfileState(

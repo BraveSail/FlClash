@@ -26,7 +26,7 @@ void main() {
     expect((proxies[2] as Map).containsKey('directory-id'), isFalse);
   });
 
-  test('applyDirectoryId leaves the mesh block alone', () {
+  test('applyDirectoryId names the mesh block this device runs', () {
     final rawConfig = <String, dynamic>{
       'mesh': {
         'directory-url': 'https://directory.example',
@@ -40,14 +40,17 @@ void main() {
 
     applyDirectoryId(rawConfig, 'a3f8b2c91d04');
 
-    // The app expands the block into plain outbounds and never writes it back,
-    // so naming this device here would have nothing to serve.
-    expect((rawConfig['mesh'] as Map).containsKey('directory-id'), isFalse);
+    // One profile runs on every device: the id goes on the block, and the core
+    // hands it to every outbound it expands from there.
+    expect((rawConfig['mesh'] as Map)['directory-id'], 'a3f8b2c91d04');
+    // The names in the profile are the ones the dashboard aliases - nothing
+    // here tries to say which of them this device is.
     expect((rawConfig['mesh'] as Map)['devices'], isA<List>());
   });
 
   test('applyDirectoryId carries the name and system to every entry', () {
     final rawConfig = <String, dynamic>{
+      'mesh': {'directory-url': 'https://directory.example'},
       'proxies': [
         {'name': 'peer-directory', 'type': 'peer-directory', 'id': 'shared'},
         {
@@ -67,6 +70,9 @@ void main() {
       os: 'Android 14',
     );
 
+    final mesh = rawConfig['mesh'] as Map;
+    expect(mesh['device-name'], '小明的手机');
+    expect(mesh['device-os'], 'Android 14');
     final proxies = rawConfig['proxies'] as List;
     // The entries that report this device carry it; one that reports nothing
     // (no directory of its own) is not given anything to say.
@@ -80,16 +86,15 @@ void main() {
 
   test('applyDirectoryId sends nothing about a device that read nothing', () {
     final rawConfig = <String, dynamic>{
-      'proxies': [
-        {'name': 'peer-directory', 'type': 'peer-directory', 'id': 'shared'},
-      ],
+      'mesh': {'directory-url': 'https://directory.example'},
+      'proxies': <dynamic>[],
     };
 
     applyDirectoryId(rawConfig, 'a3f8b2c91d04');
 
-    final proxy = (rawConfig['proxies'] as List).first as Map;
-    expect(proxy.containsKey('hostname'), isFalse);
-    expect(proxy.containsKey('os'), isFalse);
+    final mesh = rawConfig['mesh'] as Map;
+    expect(mesh.containsKey('device-name'), isFalse);
+    expect(mesh.containsKey('device-os'), isFalse);
   });
 
   test('applyDirectoryId leaves the profile alone without an id', () {
