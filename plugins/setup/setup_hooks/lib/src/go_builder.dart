@@ -124,30 +124,59 @@ class GoBuilder {
     return env;
   }
 
-  /// The revision and the build time stamped into the core.
+  /// The revision of the kernel that is about to be built.
   ///
-  /// The app shows them next to the version so a device running a different
+  /// The app shows it next to its own version so a device running a different
   /// build is visible from its own about page: nodes on mismatched cores fail
   /// each other's handshakes and report nothing that points at why.
+  ///
+  /// `coreDir` holds the build (module `core`) while the kernel's sources are
+  /// the `Clash.Meta` submodule inside it, and the two are separate
+  /// repositories. The revision has to come from the submodule: asking from
+  /// `coreDir` reports the app repository instead, which is a different tree
+  /// with a different history, and its dirt - an untracked build artifact, a
+  /// doc file - marks a perfectly clean kernel `-dirty`.
   static String _readRevision(String corePath) {
+    final repo = _kernelRepoPath(corePath);
     try {
       final r = runCommand('git', [
         'rev-parse',
         '--short=12',
         'HEAD',
-      ], workingDirectory: corePath);
+      ], workingDirectory: repo);
       if (r.exitCode != 0) return '';
       final rev = (r.stdout as String).trim();
       if (rev.isEmpty) return '';
       final s = runCommand('git', [
         'status',
         '--porcelain',
-      ], workingDirectory: corePath);
-      final dirty = s.exitCode == 0 && (s.stdout as String).trim().isNotEmpty;
+      ], workingDirectory: repo);
+      if (s.exitCode != 0) return rev;
+      // Tracked edits only: an untracked file does not change what was built,
+      // and a released build must not read as modified because of a scratch
+      // file someone left in the tree.
+      final dirty = (s.stdout as String)
+          .split('\n')
+          .map((line) => line.trim())
+          .any((line) => line.isNotEmpty && !line.startsWith('??'));
       return '$rev${dirty ? '-dirty' : ''}';
     } catch (_) {
       return '';
     }
+  }
+
+  /// The directory that actually holds the kernel's git repository.
+  ///
+  /// The submodule when it is checked out, and the build directory otherwise -
+  /// a tree without the submodule still builds the module that is there, and
+  /// reporting no revision is better than reporting the app's.
+  static String _kernelRepoPath(String corePath) {
+    final submodule = p.join(corePath, 'Clash.Meta');
+    if (Directory(p.join(submodule, '.git')).existsSync() ||
+        File(p.join(submodule, '.git')).existsSync()) {
+      return submodule;
+    }
+    return corePath;
   }
 
   List<String> _buildArguments(Target target, {String? outFile}) => [
