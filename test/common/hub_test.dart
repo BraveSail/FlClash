@@ -12,6 +12,57 @@ void main() {
     });
   });
 
+  group('splitHubLink', () {
+    test('takes the token out of the link and leaves the address bare', () {
+      // The address handed on must have no query: the core appends its own
+      // path to it, and a query in the middle corrupts that.
+      final split = splitHubLink('https://hub.example/?token=secret');
+      expect(split.url, 'https://hub.example/');
+      expect(split.token, 'secret');
+    });
+
+    test('keeps other parameters while removing only the token', () {
+      final split = splitHubLink('https://hub.example/?id=pc&token=secret');
+      expect(split.token, 'secret');
+      expect(split.url, contains('id=pc'));
+      expect(split.url, isNot(contains('token=')));
+    });
+
+    test('uses the configured token when the link carries none', () {
+      final split = splitHubLink(
+        'https://hub.example',
+        fallbackToken: ' stored ',
+      );
+      expect(split.url, 'https://hub.example');
+      expect(split.token, 'stored');
+    });
+
+    test('a link with a token wins over the stored one', () {
+      final split = splitHubLink(
+        'https://hub.example/?token=fresh',
+        fallbackToken: 'stored',
+      );
+      expect(split.token, 'fresh');
+    });
+
+    test('leaves an address it cannot parse alone', () {
+      final split = splitHubLink('not a url', fallbackToken: 'stored');
+      expect(split.url, 'not a url');
+      expect(split.token, 'stored');
+    });
+
+    test('an empty link keeps the configured token and asks for nothing', () {
+      final split = splitHubLink('  ', fallbackToken: 'stored');
+      expect(split.url, '');
+      expect(split.token, 'stored');
+    });
+
+    test('trims the token it takes out of the link', () {
+      expect(splitHubLink('https://hub.example/?token=%20secret%20').token,
+          'secret');
+    });
+  });
+
   group('hubProfileUrl', () {
     test('drops the trailing slashes and carries the device id', () {
       expect(

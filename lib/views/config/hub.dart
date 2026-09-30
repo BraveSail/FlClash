@@ -33,9 +33,21 @@ class HubUrlItem extends ConsumerWidget {
         return null;
       },
       onChanged: (String? value) {
-        ref
-            .read(appSettingProvider.notifier)
-            .update((state) => state.copyWith(hubUrl: (value ?? '').trim()));
+        // The field takes a full Hub link: a token in it is stored as the
+        // token, and the address without the parameter is what every other
+        // caller uses. One value configured, and the credential cannot drift
+        // from the address it belongs to.
+        final link = (value ?? '').trim();
+        final split = splitHubLink(
+          link,
+          fallbackToken: ref.read(appSettingProvider).hubToken,
+        );
+        ref.read(appSettingProvider.notifier).update(
+          (state) => state.copyWith(
+            hubUrl: split.url.trim(),
+            hubToken: split.token.trim(),
+          ),
+        );
         // A new address means the socket is pointed at the wrong hub, so it is
         // reopened against the one just saved.
         ref.read(profilesActionProvider.notifier).watchHubProfile();

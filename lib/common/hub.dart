@@ -3,6 +3,46 @@ bool isHubEnabled(String hubUrl, String hubToken) {
   return hubUrl.trim().isNotEmpty && hubToken.trim().isNotEmpty;
 }
 
+/// The parameter a Hub link carries its token in.
+const hubTokenParam = 'token';
+
+/// Splits a Hub link into the address and the token it carries.
+///
+/// A link is what a user is given: one value naming the Hub and the credential
+/// together, so there is no second field to fall out of step with the first
+/// (a stored token and a token inside the profile are two places, and a
+/// re-generated one silently desynchronises them). The returned address has the
+/// parameter removed, because the core appends its own path to it
+/// (`<url>/report`, `<url>/lookup`) and a query in the middle would corrupt
+/// those. The token travels in the request header as before.
+///
+/// A bare address with a separately configured token keeps working: when the
+/// link carries no token the one passed in is used unchanged.
+({String url, String token}) splitHubLink(String link, {String fallbackToken = ''}) {
+  final raw = link.trim();
+  if (raw.isEmpty) {
+    return (url: '', token: fallbackToken.trim());
+  }
+  final uri = Uri.tryParse(raw);
+  if (uri == null || !uri.hasScheme) {
+    return (url: raw, token: fallbackToken.trim());
+  }
+  final carried = uri.queryParameters[hubTokenParam]?.trim() ?? '';
+  if (carried.isEmpty) {
+    return (url: raw, token: fallbackToken.trim());
+  }
+  final remaining = Map<String, String>.from(uri.queryParameters)
+    ..remove(hubTokenParam);
+  // An empty parameter map leaves a bare '?', and passing null would mean
+  // "keep the query as it is" — which is the token itself — so the leftover
+  // separator is trimmed off instead.
+  var stripped = uri.replace(queryParameters: remaining).toString();
+  if (stripped.endsWith('?')) {
+    stripped = stripped.substring(0, stripped.length - 1);
+  }
+  return (url: stripped, token: carried);
+}
+
 String normalizeHubUrl(String hubUrl) {
   var url = hubUrl.trim();
   while (url.endsWith('/')) {
