@@ -88,6 +88,35 @@ func (th *TunHandler) clear() {
 // VpnService produces one log line rather than one per connection.
 var protectFailing atomic.Bool
 
+// markableFd asks libnetd_client's checkSocket what it would ask, without
+// letting it act on the answer. The second return says whether the descriptor
+// is a socket at all.
+//
+// VpnService.protect closes the descriptor it is handed when that check fails:
+// protectFromVpn runs CHECK_SOCKET_IS_MARKABLE, whose failure branch is
+// closeFdAndSetErrno(fd). What comes back is a bare false, which reads as "the
+// socket was not marked" and not at all as "the descriptor is already closed",
+// so the caller closes it a second time. The kernel hands that number to
+// whatever asks for a descriptor next - a C++ unique_fd in libbinder's parcel
+// teardown, in libui's fence unflatten, in this very call - and fdsan aborts on
+// whichever thread reaches it first. One cause, unrelated stacks: every abort
+// seen on this device has that shape.
+//
+// So ask first. A descriptor the platform would reject is one it does not need,
+// and one whose closure stays ours.
+func markableFd(fd int) (markable bool, usable bool) {
+	if fd < 0 {
+		return false, false
+	}
+	family, err := syscall.GetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_DOMAIN)
+	if err != nil {
+		// Already closed, or not a socket at all. checkSocket would fail the
+		// same way, and the platform would then close what is left of it.
+		return false, false
+	}
+	return family == syscall.AF_INET || family == syscall.AF_INET6, true
+}
+
 func (th *TunHandler) handleProtect(fd int) error {
 	th.mu.RLock()
 	defer th.mu.RUnlock()
@@ -98,6 +127,18 @@ func (th *TunHandler) handleProtect(fd int) error {
 		// routed straight back into the tunnel and hang until it times out.
 		// Failing it here costs nothing and is at least visible.
 		return errTunNotReady
+	}
+
+	markable, usable := markableFd(fd)
+	if !usable {
+		// Nothing the platform could mark, and handing it over would cost us
+		// the descriptor. Fail the connection rather than the process.
+		return errTunNotReady
+	}
+	if !markable {
+		// Not an IP socket, so it never routes through the tun and needs no
+		// mark - and protect would reject it and close it.
+		return nil
 	}
 
 	if !protect(th.callback, fd) {
