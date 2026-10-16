@@ -10,9 +10,14 @@ import 'package:rust_api/rust_api.dart';
 import 'application.dart';
 import 'bootstrap.dart';
 import 'common/common.dart';
+import 'common/fdsan.dart';
 import 'common/window.dart';
 
 void main(List<String> args) {
+  // Before anything else that can open a socket: Android 16's VPN stack raises
+  // an fdsan violation inside its own protect path, and left fatal it kills the
+  // process at random. See common/fdsan.dart.
+  keepFdsanViolationsNonFatal();
   runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
