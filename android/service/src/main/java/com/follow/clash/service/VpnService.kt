@@ -27,6 +27,7 @@ class VpnService : SystemVpnService(), ManagedService {
     private val modules = ServiceModules(this)
     private val binder = LocalBinder()
     private val tunLock = Any()
+    private val powerLocks by lazy { PowerLocks(this) }
     private var tunRunning = false
 
     override fun onDestroy() {
@@ -167,6 +168,12 @@ class VpnService : SystemVpnService(), ManagedService {
                 throw error
             }
         }
+        // The tunnel is up, so hold the radio and the CPU against what Android
+        // does once the screen is off. Without this the VPN answers in
+        // milliseconds with the display on and in seconds, or not at all, with
+        // it off: Wi-Fi drops into 802.11 power save and the CPU suspends
+        // between its wake-up intervals.
+        powerLocks.acquire()
     }
 
     private fun Builder.addAddressAndRoutes(options: VpnOptions) {
@@ -266,6 +273,7 @@ class VpnService : SystemVpnService(), ManagedService {
     }
 
     private fun cleanup() {
+        powerLocks.release()
         try {
             modules.stop()
         } finally {
