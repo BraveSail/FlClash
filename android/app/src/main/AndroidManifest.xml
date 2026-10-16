@@ -116,5 +116,17 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Impeller's Vulkan backend null-dereferences inside the Adreno driver:
+             `vkCmdBeginRenderPass` calls into /vendor/lib64/hw/vulkan.adreno.so and
+             the raster thread takes a SIGSEGV at fault address 0x1c. Both phones
+             here are Adreno and both crash this way, at unrelated moments, in
+             rendering rather than in any app code. Impeller's OpenGL ES backend
+             draws the same frames without going through that driver path, so keep
+             Impeller and change only which backend it uses. Flutter's own Android
+             engine tests select a backend exactly this way. -->
+        <meta-data
+            android:name="io.flutter.embedding.android.ImpellerBackend"
+            android:value="opengles" />
     </application>
 </manifest>
