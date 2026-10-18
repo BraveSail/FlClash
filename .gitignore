@@ -3,6 +3,16 @@
 *.log
 *.pyc
 *.swp
+
+# Signing material - never commit. This is a public fork, so a keystore or key
+# here would publish the release key and hand over the right to ship updates.
+android/app/keystore.jks
+android/local.properties
+*.jks
+*.keystore
+*.p12
+*.pk8
+release_key*
 .DS_Store
 .atom/
 .build/
