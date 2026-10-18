@@ -215,10 +215,10 @@ Future<int> _package(
   );
 
   process.stdout.listen((data) {
-    stdout.write(utf8.decode(data));
+    stdout.write(utf8.decode(data, allowMalformed: true));
   });
   process.stderr.listen((data) {
-    stderr.write(utf8.decode(data));
+    stderr.write(utf8.decode(data, allowMalformed: true));
   });
   final exitCode = await process.exitCode;
   return exitCode;

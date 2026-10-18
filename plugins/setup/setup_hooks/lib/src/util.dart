@@ -55,6 +55,11 @@ ProcessResult runCommand(
     workingDirectory: workingDirectory,
     environment: _withToolSearchPath(environment),
     includeParentEnvironment: includeParentEnvironment,
+    // On Windows the NDK ships its compiler wrappers as `.cmd` scripts (and a
+    // bare bash script with no extension beside them), so the executable name
+    // the hook was handed cannot be launched directly. Going through the shell
+    // is what makes `aarch64-linux-android24-clang` resolve to its `.cmd`.
+    runInShell: Platform.isWindows,
     stdoutEncoding: systemEncoding,
     stderrEncoding: systemEncoding,
   );
