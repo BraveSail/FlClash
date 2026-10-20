@@ -331,12 +331,10 @@ class GeneralListView extends ConsumerWidget {
             icon: Icons.api_outlined,
             title: (l) => l.externalController,
             subtitle: (l) => l.externalControllerDesc,
-            select: (state) =>
-                state.externalController == ExternalControllerStatus.open,
+            select: (state) => state.externalController.isNotEmpty,
             update: (state, value) => state.copyWith(
-              externalController: value
-                  ? ExternalControllerStatus.open
-                  : ExternalControllerStatus.close,
+              externalController:
+                  value ? defaultExternalController : '',
             ),
           ),
           const AuthenticationItem(),

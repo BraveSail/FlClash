@@ -563,9 +563,9 @@ abstract class PatchClashConfig with _$PatchClashConfig {
     @JsonKey(name: 'geodata-loader')
     GeodataLoader geodataLoader,
     @JsonKey(name: 'global-ua') String? globalUa,
-    @Default(ExternalControllerStatus.close)
+    @Default('')
     @JsonKey(name: 'external-controller')
-    ExternalControllerStatus externalController,
+    String externalController,
     @Default({}) Map<String, String> hosts,
     @Default([]) @JsonKey(name: 'disabled-hosts') List<String> disabledHosts,
     @Default(false) @JsonKey(name: 'geo-auto-update') bool geoAutoUpdate,

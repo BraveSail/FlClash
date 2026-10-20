@@ -204,16 +204,12 @@ enum DnsMode {
   hosts,
 }
 
-enum ExternalControllerStatus {
-  @JsonValue('')
-  close(''),
-  @JsonValue('127.0.0.1:9090')
-  open('127.0.0.1:9090');
-
-  final String value;
-
-  const ExternalControllerStatus(this.value);
-}
+// FlClash 上游把外部控制器地址做成了二值枚举（'' 或 '127.0.0.1:9090'），
+// 于是 WebUI 和局域网访问都不可能。Go 内核侧收的是 *string
+// （core/constant.go:39 ExternalController *string），没有这个限制 ——
+// 枚举只是 Dart 单方面加的枷锁，已删除，改用 String。
+// 缺省值保持上游行为：'' 表示关闭，'127.0.0.1:9090' 表示只绑本机。
+const String defaultExternalController = '127.0.0.1:9090';
 
 enum KeyboardModifier {
   alt([PhysicalKeyboardKey.altLeft, PhysicalKeyboardKey.altRight]),

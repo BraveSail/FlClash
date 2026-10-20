@@ -154,8 +154,17 @@ Future<({String yaml, String md5})> _makeRealProfileTask(
     }
   }
 
-  rawConfig['external-controller'] = realPatchConfig.externalController.value;
-  rawConfig['external-ui'] = '';
+  // 外部控制器与 WebUI：上游在这里写死 —— external-controller 只取枚举的
+  // 两个值，external-ui / external-ui-url 直接清空 —— 结果 WebUI 永远不可用、
+  // 9090 永远只绑本机（作者在 issue #75/#1499 明确不支持改）。
+  // 这里改为「profile 里写了就用 profile 的，没写就保持上游默认」，
+  // 所以不配置的用户行为完全不变。
+  final profileController = rawConfig['external-controller'];
+  rawConfig['external-controller'] = profileController is String
+      ? profileController
+      : realPatchConfig.externalController;
+  rawConfig['external-ui'] = rawConfig['external-ui'] ?? '';
+  rawConfig['external-ui-url'] = rawConfig['external-ui-url'] ?? '';
   switch (realPatchConfig.interfaceNameMode) {
     case InterfaceNameMode.clear:
       rawConfig['interface-name'] = '';
@@ -164,7 +173,6 @@ Future<({String yaml, String md5})> _makeRealProfileTask(
     case InterfaceNameMode.custom:
       rawConfig['interface-name'] = realPatchConfig.interfaceName;
   }
-  rawConfig['external-ui-url'] = '';
   rawConfig['tcp-concurrent'] = realPatchConfig.tcpConcurrent;
   rawConfig['unified-delay'] = realPatchConfig.unifiedDelay;
   rawConfig['ipv6'] = realPatchConfig.ipv6;
