@@ -447,6 +447,7 @@ _PatchClashConfig _$PatchClashConfigFromJson(Map<String, dynamic> json) =>
           GeodataLoader.memconservative,
       globalUa: json['global-ua'] as String?,
       externalController: json['external-controller'] as String? ?? '',
+      externalUi: json['external-ui'] as String? ?? '',
       hosts:
           (json['hosts'] as Map<String, dynamic>?)?.map(
             (k, e) => MapEntry(k, e as String),
@@ -485,6 +486,7 @@ Map<String, dynamic> _$PatchClashConfigToJson(_PatchClashConfig instance) =>
       'geodata-loader': _$GeodataLoaderEnumMap[instance.geodataLoader]!,
       'global-ua': instance.globalUa,
       'external-controller': instance.externalController,
+      'external-ui': instance.externalUi,
       'hosts': instance.hosts,
       'disabled-hosts': instance.disabledHosts,
       'geo-auto-update': instance.geoAutoUpdate,

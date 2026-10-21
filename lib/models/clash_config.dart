@@ -566,6 +566,13 @@ abstract class PatchClashConfig with _$PatchClashConfig {
     @Default('')
     @JsonKey(name: 'external-controller')
     String externalController,
+    // WebUI 静态文件目录。上游把它写死在 profile 生成阶段清空，且
+    // FlClash 每次启动都会用内存态重写 profile —— 所以放在 app 自己的
+    // patchClashConfig 里（shared_preferences），手改 profile 不会被覆盖。
+    // 空 = 关闭，与上游默认一致。
+    @Default('')
+    @JsonKey(name: 'external-ui')
+    String externalUi,
     @Default({}) Map<String, String> hosts,
     @Default([]) @JsonKey(name: 'disabled-hosts') List<String> disabledHosts,
     @Default(false) @JsonKey(name: 'geo-auto-update') bool geoAutoUpdate,

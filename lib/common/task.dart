@@ -163,8 +163,8 @@ Future<({String yaml, String md5})> _makeRealProfileTask(
   rawConfig['external-controller'] = profileController is String
       ? profileController
       : realPatchConfig.externalController;
-  rawConfig['external-ui'] = rawConfig['external-ui'] ?? '';
-  rawConfig['external-ui-url'] = rawConfig['external-ui-url'] ?? '';
+  rawConfig['external-ui'] = realPatchConfig.externalUi;
+  rawConfig['external-ui-url'] = '';
   switch (realPatchConfig.interfaceNameMode) {
     case InterfaceNameMode.clear:
       rawConfig['interface-name'] = '';
