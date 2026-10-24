@@ -128,7 +128,10 @@ void main() {
 
       final mesh = rawConfig['mesh'] as Map;
       expect(mesh['directory-url'], 'https://hub.example');
-      expect(mesh['directory-token'], 'secret');
+      // The token stops at the app: the core proves its own id with a key it
+      // keeps, and a profile that carried the secret would give every device
+      // the power to claim any other.
+      expect(mesh.containsKey('directory-token'), isFalse);
       expect(mesh['devices'], isA<List>());
     });
 
@@ -144,7 +147,8 @@ void main() {
 
       final mesh = rawConfig['mesh'] as Map;
       expect(mesh['directory-url'], 'https://hub.example');
-      expect(mesh['directory-token'], 'secret');
+      expect(mesh.containsKey('directory-token'), isFalse,
+          reason: 'a token the profile carried must be taken out, not kept');
     });
 
     test('leaves a profile without a mesh block alone', () {

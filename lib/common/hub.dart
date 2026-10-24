@@ -120,7 +120,12 @@ void applyHubConnection(
     return;
   }
   mesh['directory-url'] = normalizeHubUrl(hubUrl);
-  mesh['directory-token'] = hubToken.trim();
+  // The token is no longer written into the profile. It was the network's
+  // shared secret and every device's proof at once, so any device holding it
+  // could claim any id. The core now proves its own id with a key it keeps in
+  // its own home: registering once, then signing every request. The token the
+  // app holds is used for what the app itself fetches, and by nothing else.
+  mesh.remove('directory-token');
   // The proxy is the core's own mixed-port inbound, and the core knows its
   // port and credentials - so what is recorded here is the intent, not an
   // address the app would have to keep in step with its own listener.
