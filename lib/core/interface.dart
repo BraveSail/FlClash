@@ -19,6 +19,10 @@ mixin CoreInterface {
 
   Future<bool> get isInit;
 
+  /// The mesh identity the core derived from this machine: the id it
+  /// reports under, the name it is shown by and the system it runs.
+  Future<Map<String, String>> get deviceIdentity;
+
   Future<bool> forceGc();
 
   Future<String> validateConfig(String path);
@@ -155,6 +159,18 @@ abstract class CoreHandlerInterface with CoreInterface {
   @override
   Future<bool> get isInit async {
     return await _invokeMethod<bool>(method: CoreMethod.getIsInit) ?? false;
+  }
+
+  @override
+  Future<Map<String, String>> get deviceIdentity async {
+    final data = await _invokeMethod<Map<String, dynamic>>(
+      method: CoreMethod.getDeviceIdentity,
+    );
+    return {
+      'id': '${data?['id'] ?? ''}',
+      'name': '${data?['name'] ?? ''}',
+      'os': '${data?['os'] ?? ''}',
+    };
   }
 
   @override

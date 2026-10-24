@@ -6,6 +6,8 @@ import (
 	"runtime"
 	"sync/atomic"
 	"unsafe"
+
+	meshident "github.com/metacubex/mihomo/component/mesh"
 )
 
 type MethodCall struct {
@@ -161,6 +163,17 @@ var methodHandlers = map[CoreMethod]methodHandler{
 	}),
 	getIsInitMethod: withoutArguments(func(response MethodResponse) {
 		response.success(handleGetIsInit())
+	}),
+	// The mesh identity is derived by the core from the machine itself, so the
+	// app asks for it instead of computing a second copy: the profile a device
+	// pulls and the id it reports have to be the same value.
+	getDeviceIdentityMethod: withoutArguments(func(response MethodResponse) {
+		identity := meshident.Derive()
+		response.success(map[string]any{
+			"id":   identity.ID,
+			"name": identity.Name,
+			"os":   identity.OS,
+		})
 	}),
 	forceGcMethod: withoutArguments(func(response MethodResponse) {
 		handleForceGC()

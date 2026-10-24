@@ -1,6 +1,8 @@
 #include <jni.h>
 
+#include <cstdlib>
 #include <cstring>
+#include <string>
 
 #include "jni_helper.h"
 #include "libclash.h"
@@ -170,6 +172,92 @@ static void call_invoke_interface_result_impl(void *invoke_interface, const char
     }
 }
 
+static char *empty_c_string() {
+    return static_cast<char *>(calloc(1, 1));
+}
+
+// ANDROID_ID, read through the platform's own API: it lives behind
+// Settings.Secure, and no file in the app sandbox holds it. The Application is
+// reached through ActivityThread because this process was started by Flutter
+// and never handed a Context - the same object the app itself would use.
+static char *read_machine_id_impl() {
+    ATTACH_JNI();
+    const auto activity_thread = find_class("android/app/ActivityThread");
+    if (activity_thread == nullptr || jni_clear_exception(env)) {
+        return empty_c_string();
+    }
+    const auto current_application = env->GetStaticMethodID(
+        activity_thread, "currentApplication", "()Landroid/app/Application;");
+    if (current_application == nullptr || jni_clear_exception(env)) {
+        return empty_c_string();
+    }
+    const auto application = env->CallStaticObjectMethod(activity_thread, current_application);
+    if (application == nullptr || jni_clear_exception(env)) {
+        return empty_c_string();
+    }
+
+    const auto context = find_class("android/content/Context");
+    const auto get_resolver = find_method(context, "getContentResolver",
+                                          "()Landroid/content/ContentResolver;");
+    const auto resolver = env->CallObjectMethod(application, get_resolver);
+    if (resolver == nullptr || jni_clear_exception(env)) {
+        env->DeleteLocalRef(application);
+        return empty_c_string();
+    }
+
+    const auto secure = find_class("android/provider/Settings$Secure");
+    const auto get_string_method = env->GetStaticMethodID(
+        secure, "getString",
+        "(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;");
+    const auto key = new_string("android_id");
+    const auto value = static_cast<jstring>(env->CallStaticObjectMethod(
+        secure, get_string_method, resolver, key));
+
+    env->DeleteLocalRef(key);
+    env->DeleteLocalRef(resolver);
+    env->DeleteLocalRef(application);
+
+    if (value == nullptr || jni_clear_exception(env)) {
+        return empty_c_string();
+    }
+    char *id = get_string(value);
+    env->DeleteLocalRef(value);
+    return id;
+}
+
+// "Android 14": Build.VERSION.RELEASE, the string the dashboard shows.
+static char *read_os_name_impl() {
+    ATTACH_JNI();
+    const auto version = find_class("android/os/Build$VERSION");
+    if (version == nullptr || jni_clear_exception(env)) {
+        return empty_c_string();
+    }
+    const auto release_field = env->GetStaticFieldID(version, "RELEASE", "Ljava/lang/String;");
+    if (release_field == nullptr || jni_clear_exception(env)) {
+        return empty_c_string();
+    }
+    const auto release = static_cast<jstring>(env->GetStaticObjectField(version, release_field));
+    if (release == nullptr || jni_clear_exception(env)) {
+        return empty_c_string();
+    }
+    const auto release_text = get_string(release);
+    env->DeleteLocalRef(release);
+
+    std::string name = "Android";
+    if (release_text != nullptr && release_text[0] != '\0') {
+        name += " ";
+        name += release_text;
+    }
+    free(release_text);
+
+    auto *out = static_cast<char *>(malloc(name.size() + 1));
+    if (out == nullptr) {
+        return empty_c_string();
+    }
+    memcpy(out, name.c_str(), name.size() + 1);
+    return out;
+}
+
 extern "C"
 JNIEXPORT jint JNICALL
 JNI_OnLoad(JavaVM *vm, void *) {
@@ -199,6 +287,8 @@ JNI_OnLoad(JavaVM *vm, void *) {
     result_func = &call_invoke_interface_result_impl;
     release_object_func = &release_jni_object_impl;
     free_string_func = &free_string_impl;
+    machine_id_func = &read_machine_id_impl;
+    os_name_func = &read_os_name_impl;
 
     return JNI_VERSION_1_6;
 }

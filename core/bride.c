@@ -12,6 +12,26 @@ int (*resolve_uid_func)(void *tun_interface, int protocol, const char *source, c
 
 char* (*resolve_package_func)(void *tun_interface, int uid);
 
+char* (*machine_id_func)(void);
+
+char* (*os_name_func)(void);
+
+char* machine_id(void) {
+    if (machine_id_func == NULL) {
+        // calloc rather than "": the caller frees whatever comes back, and a
+        // string literal is not the heap's to free.
+        return calloc(1, 1);
+    }
+    return machine_id_func();
+}
+
+char* os_name(void) {
+    if (os_name_func == NULL) {
+        return calloc(1, 1);
+    }
+    return os_name_func();
+}
+
 void (*result_func)(void *invoke_Interface, const char *data);
 
 int protect(void *tun_interface, int fd) {

@@ -90,6 +90,9 @@ class CoreController {
 
   FutureOr<bool> get isInit => _interface.isInit;
 
+  /// The mesh identity the core derived from this machine.
+  FutureOr<Map<String, String>> get deviceIdentity => _interface.deviceIdentity;
+
   Future<String> validateConfig(String path) async {
     final res = await _interface.validateConfig(path);
     return res;

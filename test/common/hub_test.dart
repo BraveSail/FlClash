@@ -212,233 +212,44 @@ void main() {
     });
   });
 
-  group('hubDevicesUrl', () {
-    test('addresses the device list on the hub origin', () {
+  // 设备列表的解析与注入已移进 core：app 只写 directory-url/token 和
+  // directory-via-proxy，发现与展开由 mihomo 自己完成。
+
+  group('hubProfileWatchUrl', () {
+    test('names the id and the revision it already runs', () {
       expect(
-        hubDevicesUrl('https://hub.example/'),
-        'https://hub.example/api/devices',
+        hubProfileWatchUrl('http://h/', 'abc', 'e1'),
+        'http://h/profile/watch?id=abc&etag=e1',
       );
-      expect(hubDevicesUrl(''), '');
+    });
+
+    test('omits an empty revision', () {
+      expect(
+        hubProfileWatchUrl('http://h', 'abc', '  '),
+        'http://h/profile/watch?id=abc',
+      );
+    });
+
+    test('no id means no socket', () {
+      expect(hubProfileWatchUrl('http://h', '   ', 'e1'), '');
+      expect(hubProfileWatchUrl('', 'abc', 'e1'), '');
     });
   });
 
-  group('parseHubDevices', () {
-    test('reads the name, the id and the port of every device', () {
-      final devices = parseHubDevices({
-        'nodes': [
-          {'id': 'bbbb2222', 'hostname': 'gt7', 'port': 9443},
-          {
-            'id': 'aaaa1111',
-            'alias': 'PC',
-            'hostname': 'desktop',
-            'port': 8443,
-          },
-        ],
-      });
-
-      // Ordered by id, so every device of the mesh expands the same list in
-      // the same order.
-      expect(devices.map((d) => d.id), ['aaaa1111', 'bbbb2222']);
-      expect(devices.first.name, 'PC');
-      expect(devices.first.port, 8443);
-      expect(devices.last.name, 'gt7');
+  group('hubSocketUrl', () {
+    test('http becomes ws and https becomes wss', () {
+      expect(hubSocketUrl('http://h:1/x'), 'ws://h:1/x');
+      expect(hubSocketUrl('https://h/x'), 'wss://h/x');
     });
 
-    test('prefers the alias, then the host name, then the id', () {
-      final devices = parseHubDevices({
-        'nodes': [
-          {'id': 'aaaa1111', 'alias': 'PC', 'hostname': 'desktop'},
-          {'id': 'bbbb2222', 'hostname': 'gt7'},
-          {'id': 'cccc3333'},
-        ],
-      });
-
-      expect(devices.map((d) => d.name), ['PC', 'gt7', 'cccc3333']);
+    test('a scheme-less value is left alone', () {
+      expect(hubSocketUrl('h:1/x'), 'h:1/x');
     });
-
-    test('falls back to the id for a name the core would refuse', () {
-      final devices = parseHubDevices({
-        'nodes': [
-          {'id': 'aaaa1111', 'hostname': 'two words'},
-          {'id': 'bbbb2222', 'hostname': 'x' * 64},
-        ],
-      });
-
-      expect(devices.map((d) => d.name), ['aaaa1111', 'bbbb2222']);
-    });
-
-    test('keeps two devices from sharing one name', () {
-      final devices = parseHubDevices({
-        'nodes': [
-          {'id': 'aaaa1111', 'hostname': 'pc'},
-          {'id': 'bbbb2222', 'hostname': 'pc'},
-        ],
-      });
-
-      expect(devices.map((d) => d.name), ['pc', 'bbbb2222']);
-    });
-
-    test('drops a record no client could ask about', () {
-      final devices = parseHubDevices({
-        'nodes': [
-          {'hostname': 'no id'},
-          {'id': 'bad id'},
-          {'id': 'aaaa1111', 'hostname': 'pc'},
-        ],
-      });
-
-      expect(devices.map((d) => d.id), ['aaaa1111']);
-    });
-
-    test('reads the domain a rule reaches the device by', () {
-      final devices = parseHubDevices({
-        'nodes': [
-          {'id': 'aaaa1111', 'hostname': 'pc', 'domain': 'pc.lan'},
-          {'id': 'bbbb2222', 'hostname': 'gt7'},
-        ],
-      });
-
-      expect(devices.first.domain, 'pc.lan');
-      // A device the hub holds no domain for keeps its place: the core writes
-      // no rule for it, and it is still reached by its name.
-      expect(devices.last.domain, isEmpty);
-    });
-
-    test('normalizes a domain and drops one the core would refuse', () {
-      final devices = parseHubDevices({
-        'nodes': [
-          {'id': 'aaaa1111', 'domain': 'PC.LAN'},
-          {'id': 'bbbb2222', 'domain': 'has spaces'},
-          {'id': 'cccc3333', 'domain': '-bad.example'},
-        ],
-      });
-
-      // The core matches the name a connection asked for, and a domain is
-      // case-insensitive: lower case here is what makes the rule match.
-      expect(devices.first.domain, 'pc.lan');
-      // A domain only decides which device a name reaches, so a bad one costs
-      // the device its domain, not its place in the mesh.
-      expect(devices[1].domain, isEmpty);
-      expect(devices[2].domain, isEmpty);
-    });
-
-    test(
-      'keeps a device without a usable port and answers an unreadable payload',
-      () {
-        final devices = parseHubDevices({
-          'nodes': [
-            {'id': 'aaaa1111', 'port': 70000},
-            {'id': 'bbbb2222'},
-          ],
-        });
-
-        expect(devices.map((d) => d.port), [0, 0]);
-        expect(parseHubDevices(null), isEmpty);
-        expect(parseHubDevices({'nodes': 'nope'}), isEmpty);
-      },
-    );
   });
 
-  group('applyHubDevices', () {
-    test('writes the list and the flag the core expands from', () {
-      final rawConfig = <String, dynamic>{
-        'mesh': <String, dynamic>{'directory-url': 'https://hub.example'},
-      };
-
-      applyHubDevices(
-        rawConfig,
-        devices: const [
-          HubDevice(name: 'PC', id: 'aaaa1111'),
-          HubDevice(name: 'gt7', id: 'bbbb2222', port: 9443),
-        ],
-      );
-
-      final mesh = rawConfig['mesh'] as Map;
-      expect(mesh['directory-resolved'], isTrue);
-      expect(mesh['devices'], [
-        {'name': 'PC', 'id': 'aaaa1111'},
-        {'name': 'gt7', 'id': 'bbbb2222', 'port': 9443},
-      ]);
-      expect(mesh.containsKey('directory-proxy'), isFalse);
-    });
-
-    test('writes the domain so the core can write the rule from it', () {
-      final rawConfig = <String, dynamic>{
-        'mesh': <String, dynamic>{'directory-url': 'https://hub.example'},
-      };
-
-      applyHubDevices(
-        rawConfig,
-        devices: const [
-          HubDevice(name: 'PC', id: 'aaaa1111', domain: 'pc.lan'),
-          HubDevice(name: 'gt7', id: 'bbbb2222', domain: 'gt7.lan'),
-        ],
-      );
-
-      // The profile writes no rule for a device: the core writes one per
-      // domain here, so a device renamed on the dashboard never leaves a rule
-      // pointing at nothing.
-      expect((rawConfig['mesh'] as Map)['devices'], [
-        {'name': 'PC', 'id': 'aaaa1111', 'domain': 'pc.lan'},
-        {'name': 'gt7', 'id': 'bbbb2222', 'domain': 'gt7.lan'},
-      ]);
-    });
-
-    test('leaves the domain out when the hub holds none', () {
-      final rawConfig = <String, dynamic>{
-        'mesh': <String, dynamic>{'directory-url': 'https://hub.example'},
-      };
-
-      applyHubDevices(
-        rawConfig,
-        devices: const [HubDevice(name: 'PC', id: 'aaaa1111')],
-      );
-
-      expect((rawConfig['mesh'] as Map)['devices'], [
-        {'name': 'PC', 'id': 'aaaa1111'},
-      ]);
-    });
-
-    test('an empty list is still a resolved list', () {
-      final rawConfig = <String, dynamic>{
-        'mesh': <String, dynamic>{'directory-url': 'https://hub.example'},
-      };
-
-      applyHubDevices(rawConfig, devices: const []);
-
-      final mesh = rawConfig['mesh'] as Map;
-      // The core takes this as "the hub holds no device" and reads nothing
-      // while it parses, rather than failing the start on a blocked network.
-      expect(mesh['directory-resolved'], isTrue);
-      expect(mesh['devices'], isEmpty);
-    });
-
-    test('carries the proxy the runtime requests go through', () {
-      final rawConfig = <String, dynamic>{
-        'mesh': <String, dynamic>{'directory-url': 'https://hub.example'},
-      };
-
-      applyHubDevices(
-        rawConfig,
-        devices: const [HubDevice(name: 'PC', id: 'aaaa1111')],
-        directoryProxy: 'http://127.0.0.1:7890',
-      );
-
-      expect(
-        (rawConfig['mesh'] as Map)['directory-proxy'],
-        'http://127.0.0.1:7890',
-      );
-    });
-
-    test('leaves a profile without a mesh block alone', () {
-      final rawConfig = <String, dynamic>{'proxies': <dynamic>[]};
-
-      applyHubDevices(
-        rawConfig,
-        devices: const [HubDevice(name: 'PC', id: 'aaaa1111')],
-      );
-
-      expect(rawConfig.keys, ['proxies']);
+  group('hubAuthHeaders', () {
+    test('carries the token as a bearer, trimmed', () {
+      expect(hubAuthHeaders(' secret '), {'Authorization': 'Bearer secret'});
     });
   });
 }

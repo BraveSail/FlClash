@@ -36,3 +36,13 @@ func takeCString(s *C.char) string {
 	defer C.free_string(s)
 	return C.GoString(s)
 }
+
+// machineID is the platform's own id, read by the JNI layer.
+func machineID() string {
+	return takeCString(C.machine_id())
+}
+
+// osName is the platform's own name and version, e.g. "Android 14".
+func osName() string {
+	return takeCString(C.os_name())
+}
