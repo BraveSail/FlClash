@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"path/filepath"
 	"os"
 	"sync"
 
@@ -104,7 +105,21 @@ func startHubProfile() {
 // what the core runs, and this block describes how the core is to be kept up to
 // date, which is not part of that.
 func hubBlockFromAppliedConfig() *hubprofile.Config {
-	buf, err := os.ReadFile(C.Path.Config())
+	// HomeDir first, then the configured path: the app tells the core where its
+	// data lives over IPC and writes the profile there, while the core's own
+	// config path can still be the bare "config.yaml" it was compiled with - a
+	// relative name resolved against whatever directory the process was started
+	// in, which is the install directory and not the one holding the profile.
+	var buf []byte
+	var err error
+	for _, candidate := range []string{
+		filepath.Join(C.Path.HomeDir(), "config.yaml"),
+		C.Path.Config(),
+	} {
+		if buf, err = os.ReadFile(candidate); err == nil {
+			break
+		}
+	}
 	if err != nil {
 		// A core started with a configuration string or from stdin has no file
 		// to read; it is also a core the app owns and drives, so the channel is
