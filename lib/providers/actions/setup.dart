@@ -361,6 +361,7 @@ class SetupAction extends _$SetupAction {
       hubSetting.$1,
       hubSetting.$2,
       viaProxy: hubSetting.$3,
+      deviceId: await deviceId(),
     );
     final directory = await appPath.profilesPath;
     final res = makeRealProfileTask(

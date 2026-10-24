@@ -111,6 +111,7 @@ void applyHubConnection(
   String hubUrl,
   String hubToken, {
   bool viaProxy = false,
+  String deviceId = '',
 }) {
   if (!isHubEnabled(hubUrl, hubToken)) {
     return;
@@ -131,5 +132,21 @@ void applyHubConnection(
   // address the app would have to keep in step with its own listener.
   if (viaProxy) {
     mesh['directory-via-proxy'] = true;
+  }
+  // And the core takes its configuration from the hub from now on: it pulls
+  // its profile, and the hub knows the whole mesh, so a device that joins
+  // appears in this one's list on the next pull instead of never. The pull is
+  // signed with the device's own key - no token travels in this block, and
+  // none is written into the profile the hub hands back.
+  final identity = deviceId.trim().isNotEmpty
+      ? deviceId.trim()
+      : (mesh['directory-id'] is String ? (mesh['directory-id'] as String).trim() : '');
+  if (identity.isNotEmpty) {
+    rawConfig['hub'] = <String, dynamic>{
+      'url': normalizeHubUrl(hubUrl),
+      'id': identity,
+      'poll-seconds': 30,
+      'keep': <String, dynamic>{'mesh.directory-id': identity},
+    };
   }
 }
