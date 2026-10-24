@@ -1,6 +1,12 @@
 /// The Hub hands each device its own profile; both halves name it.
+/// A hub is configured when an address is set.
+///
+/// The token used to be part of this: without it the app wrote nothing, which
+/// is why a device that had moved to its own key ended up with no mesh block
+/// at all. The token is now only what the app itself fetches with - the core
+/// proves its id with its own key - so an address is enough.
 bool isHubEnabled(String hubUrl, String hubToken) {
-  return hubUrl.trim().isNotEmpty && hubToken.trim().isNotEmpty;
+  return hubUrl.trim().isNotEmpty;
 }
 
 /// The parameter a Hub link carries its token in.

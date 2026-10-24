@@ -7,7 +7,9 @@ void main() {
       expect(isHubEnabled('https://hub.example', 'token'), isTrue);
       expect(isHubEnabled(' https://hub.example ', ' token '), isTrue);
       expect(isHubEnabled('', 'token'), isFalse);
-      expect(isHubEnabled('https://hub.example', ''), isFalse);
+      // An address with no token is a configured hub: the core proves its id
+      // with its own key, and the app only needs the address to fetch with.
+      expect(isHubEnabled('https://hub.example', ''), isTrue);
       expect(isHubEnabled('  ', '  '), isFalse);
     });
   });
