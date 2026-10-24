@@ -101,8 +101,13 @@ class ProfilesAction extends _$ProfilesAction {
     // path, and a socket that names none is answered with the current YAML
     // once. That costs one redundant write on connect, and guessing at a
     // revision the hub would not match would silence the first real change.
+    // The core keeps this socket now: it pulls its own profile and applies a
+    // push without the app in the path. The app's own socket cannot do that
+    // any more - it has no key to sign with, and the token it used to carry is
+    // no longer handed out - so opening one would only earn a 401 on every
+    // reconnect.
     final target = hubSocketUrl(hubProfileWatchUrl(setting.hubUrl, id, ''));
-    if (target.isEmpty) {
+    if (target.isEmpty || setting.hubToken.trim().isEmpty) {
       return;
     }
     try {
