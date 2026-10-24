@@ -36,6 +36,15 @@ var (
 // leaves the running channel alone, and a changed one replaces it.
 func startHubProfile() {
 	block := hubBlockFromAppliedConfig()
+	// Say what was found, at the level an operator reads: a hub block that is
+	// written but never noticed is indistinguishable from one that works until
+	// the day a device joins the mesh and never appears.
+	if block == nil {
+		log.Infoln("[Profile] no hub block in %s; this core stays on its running configuration", C.Path.Config())
+	} else {
+		log.Infoln("[Profile] hub block: url=%q id=%q token=%v file=%s",
+			block.URL, block.ID, block.Token != "", C.Path.Config())
+	}
 	key := ""
 	if block.Enabled() {
 		key = block.URL + "\x00" + block.ID + "\x00" + block.Token
