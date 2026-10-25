@@ -109,7 +109,14 @@ bool isHubUrl(String url, String hubUrl) {
 }
 
 Map<String, String> hubAuthHeaders(String hubToken) {
-  return {'Authorization': 'Bearer ${hubToken.trim()}'};
+  final token = hubToken.trim();
+  // An empty token is not a credential: sending "Bearer " makes the hub treat
+  // the request as an authentication attempt that failed, which reads as a
+  // device that lost its identity rather than an app with nothing to present.
+  if (token.isEmpty) {
+    return const {};
+  }
+  return {'Authorization': 'Bearer $token'};
 }
 
 void applyHubConnection(

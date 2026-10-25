@@ -248,6 +248,12 @@ class ProfilesAction extends _$ProfilesAction {
       if (id.isEmpty) {
         return;
       }
+      // The core pulls this device's profile now, signed with its own key. The
+      // app has no credential to fetch with any more, and a profile it keeps
+      // refreshing would only poll a route it is refused on.
+      if (setting.hubToken.trim().isEmpty) {
+        return;
+      }
       final url = hubProfileUrl(setting.hubUrl, id);
       final existing = ref
           .read(profilesProvider)
@@ -289,9 +295,14 @@ class ProfilesAction extends _$ProfilesAction {
       label: (existing?.label).takeFirstValid([
         currentAppLocalizations.hubProfile,
       ]),
-      autoUpdate: true,
+      // No credential to fetch with: the core keeps this profile current, so
+      // the app neither fetches it nor schedules a refresh it cannot make.
+      autoUpdate: setting.hubToken.trim().isNotEmpty,
       autoUpdateDuration: hubUpdateDuration,
     );
+    if (setting.hubToken.trim().isEmpty) {
+      return profile;
+    }
     try {
       return await profile.update(validate: _core.validateConfig);
     } on DioException catch (error) {
