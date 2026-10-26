@@ -22,11 +22,10 @@ Iterable<File> _dartFiles({required bool includeGenerated}) sync* {
     }
     for (final entity in directory.listSync(recursive: true)) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
-      final posixPath = entity.path.replaceAll('\\', '/');
       final generated =
           entity.path.endsWith('.g.dart') ||
           entity.path.endsWith('.freezed.dart') ||
-          posixPath.contains('/generated/');
+          entity.path.contains('/generated/');
       if (generated && !includeGenerated) continue;
       yield entity;
     }
@@ -64,13 +63,9 @@ void main() {
     final orphans = <String>[];
 
     for (final MapEntry(key: path, value: source) in sources.entries) {
-      // `listSync` speaks the host's separator, so `lib\main.dart` never
-      // starts with `lib/` on Windows: the guard below would skip every file
-      // and this whole check would pass without inspecting anything.
-      final posixPath = path.replaceAll('\\', '/');
-      if (!posixPath.startsWith('lib/')) continue;
-      if (barrels.contains(path) || _entryPoints.contains(posixPath)) continue;
-      if (posixPath.startsWith('lib/l10n/')) continue;
+      if (!path.startsWith('lib/')) continue;
+      if (barrels.contains(path) || _entryPoints.contains(path)) continue;
+      if (path.startsWith('lib/l10n/')) continue;
 
       // Extensions and typedefs are reached through the types they attach to,
       // never by name, so a file that publishes only those cannot be measured

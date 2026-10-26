@@ -20,6 +20,9 @@ const _allowed = {
   // `CoreEventManager` is a private-constructor singleton that fans core events
   // out for the whole run; closing its controller would end event delivery.
   'lib/core/event.dart#_controller',
+  // `App` is the process-wide Android plugin; the notifier relays keyboard
+  // state from the platform channel for the whole run.
+  'lib/plugins/app.dart#floatingKeyboard',
 };
 
 final _declaration = RegExp(
@@ -39,12 +42,9 @@ final _lateDeclaration = RegExp(
 );
 
 bool _isGenerated(String path) {
-  // `p.relative` returns the host's separator; on Windows `\generated\` would
-  // not match the `/`-separated marker and generated code would be linted.
-  final posix = path.replaceAll('\\', '/');
-  return posix.contains('/generated/') ||
-      posix.endsWith('.g.dart') ||
-      posix.endsWith('.freezed.dart');
+  return path.contains('/generated/') ||
+      path.endsWith('.g.dart') ||
+      path.endsWith('.freezed.dart');
 }
 
 void main() {
@@ -56,7 +56,7 @@ void main() {
       if (entity is! File || !entity.path.endsWith('.dart')) {
         continue;
       }
-      final relative = p.relative(entity.path).replaceAll('\\', '/');
+      final relative = p.relative(entity.path);
       if (_isGenerated(relative)) {
         continue;
       }

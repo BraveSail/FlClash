@@ -26,6 +26,45 @@ void main() {
     test('plain text', () {
       expect('not a url'.isUrl, isFalse);
     });
+
+    test('accepts an e-mail user name typed with a bare @', () {
+      final uri = 'https://me@mail.com:p@ss@dav.example.com/dav/a.yaml'.webUri;
+
+      expect(uri?.host, 'dav.example.com');
+      expect(uri?.userInfo, 'me%40mail.com:p%40ss');
+      expect(uri?.path, '/dav/a.yaml');
+    });
+
+    test('leaves an @ after the authority alone', () {
+      final uri = 'https://example.com/a@b?to=c@d'.webUri;
+
+      expect(uri?.host, 'example.com');
+      expect(uri?.userInfo, isEmpty);
+      expect(uri?.path, '/a@b');
+    });
+  });
+
+  group('StringExtension.isShareLink', () {
+    test('a link whose scheme mihomo converts', () {
+      expect('vmess://eyJhZGQiOiIxLjIuMy40In0='.isShareLink, isTrue);
+      expect('Hy2://pass@example.com:443#HK'.isShareLink, isTrue);
+    });
+
+    test('a subscription url', () {
+      expect('https://example.com/sub'.isShareLink, isFalse);
+    });
+
+    test('a scheme with nothing after it', () {
+      expect('ss://'.isShareLink, isFalse);
+    });
+
+    test('several links', () {
+      expect('ss://a@b:1\nss://c@d:2'.isShareLink, isFalse);
+    });
+
+    test('an unknown scheme', () {
+      expect('wireguard://key@example.com:51820'.isShareLink, isFalse);
+    });
   });
 
   group('StringExtension.splitByMultipleSeparators', () {
@@ -65,6 +104,18 @@ void main() {
       expect('abc'.compareToLower('ABC'), 0);
       expect('a'.compareToLower('b'), lessThan(0));
       expect('b'.compareToLower('a'), greaterThan(0));
+    });
+  });
+
+  group('StringExtension.countryFlagEmoji', () {
+    test('maps a two-letter region code to its flag', () {
+      expect('us'.countryFlagEmoji, '🇺🇸');
+    });
+
+    test('leaves anything but two ASCII letters untouched', () {
+      expect('1A'.countryFlagEmoji, '1A');
+      expect('É1'.countryFlagEmoji, 'É1');
+      expect('USA'.countryFlagEmoji, 'USA');
     });
   });
 
@@ -112,6 +163,13 @@ void main() {
       expect('icon.svg'.isSvg, isTrue);
       expect('icon.PNG'.isSvg, isFalse);
       expect('icon.svg.bak'.isSvg, isFalse);
+    });
+
+    test('reads the path of a url and the type of a data uri', () {
+      expect('https://example.com/icon.SVG?raw=true'.isSvg, isTrue);
+      expect('https://example.com/icon.png#.svg'.isSvg, isFalse);
+      expect('data:image/svg+xml;base64,PHN2Zy8+'.isSvg, isTrue);
+      expect('data:image/png;base64,iVBORw0KGgo='.isSvg, isFalse);
     });
   });
 
@@ -210,24 +268,20 @@ void main() {
       expect(result, [1, 2, 3]);
     });
   });
-
-  group('StringExtension.obscured', () {
-    test('keeps enough of the ends to recognise the secret', () {
-      const token = 'aaaa1111bbbb2222cccc3333dddd4444eeee5555';
-      final obscured = token.obscured;
-      expect(obscured.startsWith('aaaa'), isTrue);
-      expect(obscured.endsWith('5555'), isTrue);
-      expect(obscured.contains('1111bbbb'), isFalse);
-      expect(obscured.length, token.length);
+  group('StringExtension.fileStem', () {
+    test('drops only the last extension', () {
+      expect('my.script.js'.fileStem, 'my.script');
+      expect('script'.fileStem, 'script');
+      expect('.hidden'.fileStem, '.hidden');
+      expect(''.fileStem, '');
     });
+  });
 
-    test('hides a short secret whole', () {
-      expect('secret'.obscured, '\u2022' * 6);
-      expect('12345678'.obscured, '\u2022' * 8);
-    });
-
-    test('leaves a secret that cannot be hidden empty', () {
-      expect(''.obscured, isEmpty);
+  group('StringExtension.take', () {
+    test('cuts to the length without throwing on short strings', () {
+      expect('abcdef'.take(3), 'abc');
+      expect('ab'.take(3), 'ab');
+      expect(''.take(3), '');
     });
   });
 }

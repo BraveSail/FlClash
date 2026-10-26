@@ -15,25 +15,15 @@ void main() {
       'git',
       arguments,
       workingDirectory: repo.path,
-      environment: {
+      environment: const {
         'GIT_AUTHOR_DATE': '2026-01-02T00:00:00Z',
         'GIT_COMMITTER_DATE': '2026-01-02T00:00:00Z',
-        // The environment replaces the whole one. A tag that opens an editor
-        // waits on it forever: Windows resolves one to Notepad, whose window
-        // no test can type into. An empty message is a message, which is what
-        // keeps git from asking.
-        'GIT_EDITOR': 'true',
-        'EDITOR': 'true',
-        'PATH': ?Platform.environment['PATH'],
-        'SystemRoot': ?Platform.environment['SystemRoot'],
       },
     );
     if (result.exitCode != 0) {
       fail('git ${arguments.join(' ')} failed: ${result.stderr}');
     }
   }
-
-  void tag(String name) => git(['tag', '--annotate', '--message', name, name]);
 
   void commit(String message) {
     git(['commit', '--allow-empty', '--quiet', '--message', message]);
@@ -46,15 +36,15 @@ void main() {
     git(['config', 'user.name', 'Changelog test']);
 
     commit('feat: initial release');
-    tag('v1.0.0');
+    git(['tag', 'v1.0.0']);
 
     commit('feat(a): first feature');
     commit('fix(b): first fix');
-    tag('backup-pre-squash-deadbee');
-    tag('v1.1.0-pre.1');
+    git(['tag', 'backup-pre-squash-deadbee']);
+    git(['tag', 'v1.1.0-pre.1']);
 
     commit('feat(c)!: second feature\n\nBREAKING CHANGE: The old flag is gone');
-    tag('v1.1.0');
+    git(['tag', 'v1.1.0']);
 
     commit('chore: bump build number');
   });
@@ -78,7 +68,7 @@ void main() {
   test('preserves frozen history before the first structured release', () {
     git(['checkout', '--quiet', '--orphan', 'frozen-history']);
     commit('chore: optimize commented policy');
-    tag('v0.8.96');
+    git(['tag', 'v0.8.96']);
     final builder = ChangelogBuilder(Git(workingDirectory: repo.path));
     expect(builder.build().changelog.versions, isEmpty);
 

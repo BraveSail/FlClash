@@ -6,12 +6,6 @@ import 'package:test/test.dart';
 /// its own `tooltip:`. Nesting a second tooltip inside would fight it.
 const _wrappedInTooltip = 'lib/views/dashboard/widgets/core_status_button.dart';
 
-/// `listSync` hands back the host's separator, so a Windows run reads
-/// `lib\views\...`. Comparing that against the `/`-separated constants here
-/// matches nothing: the exemption below would be dropped and every exclusion
-/// silently skipped, leaving the rule enforced in name only.
-String _posix(String path) => path.replaceAll('\\', '/');
-
 final _iconButton = RegExp(
   r'\bIconButton(?:\.(?:filled|filledTonal|outlined))?\(',
 );
@@ -26,7 +20,7 @@ Iterable<File> _dartFilesIn(String root) sync* {
         entity.path.endsWith('.dart') &&
         !entity.path.endsWith('.g.dart') &&
         !entity.path.endsWith('.freezed.dart') &&
-        !_posix(entity.path).contains('/generated/')) {
+        !entity.path.contains('/generated/')) {
       yield entity;
     }
   }
@@ -49,7 +43,7 @@ void main() {
 
     for (final file in _dartFilesIn('lib')) {
       final source = file.readAsStringSync();
-      if (_posix(file.path) == _wrappedInTooltip) continue;
+      if (file.path == _wrappedInTooltip) continue;
 
       for (final match in _iconButton.allMatches(source)) {
         final arguments = _arguments(source, match.end);
@@ -59,7 +53,7 @@ void main() {
 
         final line = '\n'.allMatches(source.substring(0, match.start)).length;
         unlabelled.add(
-          '${_posix(file.path)}:${line + 1} — an icon has no accessible name, so '
+          '${file.path}:${line + 1} — an icon has no accessible name, so '
           'TalkBack and VoiceOver announce nothing and the desktop build shows '
           'no hover hint.',
         );

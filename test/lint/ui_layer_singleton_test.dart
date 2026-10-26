@@ -3,7 +3,13 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
-const _uiRoots = ['lib/views', 'lib/widgets', 'lib/pages', 'lib/features'];
+const _uiRoots = [
+  'lib/ui',
+  'lib/views',
+  'lib/widgets',
+  'lib/pages',
+  'lib/features',
+];
 
 const _forbidden = <String, String>{
   r'globalState\.container':
@@ -13,12 +19,9 @@ const _forbidden = <String, String>{
 };
 
 bool _isGenerated(String path) {
-  // `p.relative` returns the host's separator; `\generated\` would not match
-  // the `/`-separated marker, so generated code would be linted on Windows.
-  final posix = path.replaceAll('\\', '/');
-  return posix.contains('/generated/') ||
-      posix.endsWith('.g.dart') ||
-      posix.endsWith('.freezed.dart');
+  return path.contains('/generated/') ||
+      path.endsWith('.g.dart') ||
+      path.endsWith('.freezed.dart');
 }
 
 void main() {
@@ -34,7 +37,7 @@ void main() {
         if (entity is! File || !entity.path.endsWith('.dart')) {
           continue;
         }
-        final relative = p.relative(entity.path).replaceAll('\\', '/');
+        final relative = p.relative(entity.path);
         if (_isGenerated(relative)) {
           continue;
         }

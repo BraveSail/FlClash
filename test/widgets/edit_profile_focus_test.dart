@@ -1,33 +1,21 @@
 import 'dart:io';
 
 import 'package:fl_clash/common/common.dart';
-import 'package:fl_clash/common/theme.dart';
 import 'package:fl_clash/l10n/l10n.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/views/profiles/edit.dart';
+import 'package:fl_clash/widgets/widgets.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-class _FakePathProvider extends PathProviderPlatform {
-  final String root;
-
-  _FakePathProvider(this.root);
-
-  @override
-  Future<String?> getTemporaryPath() async => root;
-
-  @override
-  Future<String?> getApplicationSupportPath() async => root;
-
-  @override
-  Future<String?> getApplicationCachePath() async => root;
-}
+import '../helpers/app_paths.dart';
+import '../helpers/test_app.dart';
+import '../helpers/test_profiles.dart';
 
 /// The edit page disposes the profile by scheduling an auto-apply; keep that a
 /// no-op so the setup machinery never runs in a widget test.
@@ -38,25 +26,6 @@ class _NoopSetupAction extends SetupAction {
 
 Profile _urlProfile() =>
     Profile.normal(label: 'test', url: 'https://example.com/sub');
-
-Profile _hubProfile() =>
-    Profile.normal(label: 'hub', url: 'https://hub.example/profile?id=abc');
-
-Future<FocusNode> pumpHubEditProfile(
-  WidgetTester tester, {
-  required Profile profile,
-}) => pumpEditProfile(
-  tester,
-  profile: profile,
-  overrides: [
-    appSettingProvider.overrideWithBuild(
-      (_, _) => const AppSettingProps(
-        hubUrl: 'https://hub.example',
-        hubToken: 'secret',
-      ),
-    ),
-  ],
-);
 
 /// Pumps [EditProfileView] inside a page route (as `showExtend` does), with an
 /// outside focus node so escape behavior can be asserted.
@@ -84,6 +53,7 @@ Future<FocusNode> pumpEditProfile(
     await tester.pumpWidget(const SizedBox());
   });
   globalState.container = container;
+  container.read(viewSizeProvider.notifier).value = const Size(900, 800);
 
   final outsideFocus = FocusNode();
   addTearDown(outsideFocus.dispose);
@@ -92,15 +62,15 @@ Future<FocusNode> pumpEditProfile(
     UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
+        navigatorKey: globalState.navigatorKey,
         localizationsDelegates: const [
           AppLocalizations.delegate,
+          AppUiLocalizations.delegate,
           ...GlobalMaterialLocalizations.delegates,
         ],
         supportedLocales: AppLocalizations.delegate.supportedLocales,
         builder: (context, child) {
-          globalState.measure = Measure.of(context, 1);
-          globalState.theme = CommonTheme.of(context, 1);
-          return child!;
+          return wrapAppScopes(context, child!);
         },
         home: Scaffold(
           body: Column(
@@ -113,7 +83,6 @@ Future<FocusNode> pumpEditProfile(
                       child: Builder(
                         builder: (context) => Scaffold(
                           body: EditProfileView(
-                            context: context,
                             profile: profile ?? _urlProfile(),
                           ),
                         ),
@@ -137,9 +106,9 @@ Future<FocusNode> pumpEditProfile(
   return outsideFocus;
 }
 
-bool _isFabFocused() {
+bool _isInAppBar() {
   final context = FocusManager.instance.primaryFocus?.context;
-  return context?.findAncestorWidgetOfExactType<FloatingActionButton>() != null;
+  return context?.findAncestorWidgetOfExactType<AppBar>() != null;
 }
 
 bool _isTextFieldFocused() {
@@ -147,27 +116,12 @@ bool _isTextFieldFocused() {
   return context?.findAncestorWidgetOfExactType<EditableText>() != null;
 }
 
-/// The flag lands on the inner [TextField], and the label is what picks the
-/// URL field out from the name field above it.
-bool _urlFieldIsReadOnly(WidgetTester tester) {
-  final field = tester.widget<TextField>(
-    find.descendant(
-      of: find.ancestor(
-        of: find.text(currentAppLocalizations.url),
-        matching: find.byType(TextFormField),
-      ),
-      matching: find.byType(TextField),
-    ),
-  );
-  return field.readOnly;
-}
-
 void main() {
   late Directory tempDir;
 
-  setUpAll(() {
+  setUpAll(() async {
     tempDir = Directory.systemTemp.createTempSync('edit_profile_focus_test');
-    PathProviderPlatform.instance = _FakePathProvider(tempDir.path);
+    await useAppPaths(tempDir);
   });
 
   tearDownAll(() {
@@ -176,44 +130,77 @@ void main() {
     } catch (_) {}
   });
 
-  testWidgets('tabbing into the edit page starts with the form', (
+  testWidgets('tabbing into the edit page reaches the form past its bar', (
     tester,
   ) async {
     final outsideFocus = await pumpEditProfile(tester);
     expect(FocusManager.instance.primaryFocus, outsideFocus);
 
-    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    for (var i = 0; i < 4 && !_isTextFieldFocused(); i++) {
+      if (i > 0) {
+        expect(_isInAppBar(), isTrue);
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+    }
+    expect(_isTextFieldFocused(), isTrue);
+    expect(find.byType(FloatingActionButton), findsNothing);
+    expect(find.byTooltip('Save'), findsOneWidget);
+  });
+
+  testWidgets(
+    'the profile file row shows its size and update time without chips',
+    (tester) async {
+      await pumpEditProfile(tester);
+      final row = find.widgetWithText(
+        DecorationListItem,
+        currentAppLocalizations.profile,
+      );
+      for (var i = 0; i < 20 && row.evaluate().isEmpty; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump(const Duration(milliseconds: 400));
+      }
+      expect(row, findsOneWidget);
+      expect(
+        find.descendant(of: row, matching: find.byType(LastUpdateTimeText)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: row, matching: find.text(0.traffic.show)),
+        findsOneWidget,
+      );
+      expect(find.byType(MetaChip), findsNothing);
+    },
+  );
+
+  testWidgets('saving with auto update off ignores an emptied interval', (
+    tester,
+  ) async {
+    final profile = _urlProfile();
+    await pumpEditProfile(
+      tester,
+      profile: profile,
+      overrides: [
+        profilesProvider.overrideWith(() => TestProfiles([profile])),
+      ],
+    );
+    final interval = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField &&
+          widget.controller?.text == '${profile.autoUpdateDuration.inMinutes}',
+    );
+
+    await tester.enterText(interval, '');
+    await tester.tap(find.byType(CommonSwitch));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Save'));
     await tester.pump();
 
-    expect(_isTextFieldFocused(), isTrue);
-    expect(_isFabFocused(), isFalse);
-  });
-
-  testWidgets('the address of a hub-managed profile cannot be edited', (
-    tester,
-  ) async {
-    await pumpHubEditProfile(tester, profile: _hubProfile());
-
-    expect(_urlFieldIsReadOnly(tester), isTrue);
-    expect(
-      find.textContaining('https://hub.example/profile?id=abc'),
-      findsWidgets,
-    );
-    expect(find.text(currentAppLocalizations.hubUrlManagedTip), findsOneWidget);
-  });
-
-  testWidgets('an address of any other profile stays editable', (tester) async {
-    await pumpHubEditProfile(tester, profile: _urlProfile());
-
-    expect(_urlFieldIsReadOnly(tester), isFalse);
-    expect(find.text(currentAppLocalizations.hubUrlManagedTip), findsNothing);
-  });
-
-  testWidgets('a hub profile is editable where the hub is not configured', (
-    tester,
-  ) async {
-    await pumpEditProfile(tester, profile: _hubProfile());
-
-    expect(_urlFieldIsReadOnly(tester), isFalse);
+    expect(tester.takeException(), isNull);
+    final saved = globalState.container.read(profilesProvider).single;
+    expect(saved.autoUpdate, isFalse);
+    expect(saved.autoUpdateDuration, profile.autoUpdateDuration);
   });
 }
