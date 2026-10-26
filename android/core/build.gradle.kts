@@ -246,7 +246,13 @@ val bindCore =
             buildConfig.map { config ->
                 val flags = config["go_ldflags"].orEmpty().split(" ").filter { it.isNotEmpty() }
                 val version = config["core_version"].orEmpty()
-                (flags + listOfNotNull(version.takeIf { it.isNotEmpty() }?.let { "-X=github.com/metacubex/mihomo/constant.Version=$it" }))
+                // The hub this build belongs to, from the environment: a core
+                // that names one takes its configuration from there, and the
+                // app stays a stock app that knows nothing about a mesh.
+                val hub = System.getenv("HUB_URL").orEmpty().trim()
+                (flags +
+                        listOfNotNull(version.takeIf { it.isNotEmpty() }?.let { "-X=github.com/metacubex/mihomo/constant.Version=$it" }) +
+                        listOfNotNull(hub.takeIf { it.isNotEmpty() }?.let { "-X=github.com/metacubex/mihomo/constant.HubURL=$it" }))
                     .joinToString(" ")
             },
         )
