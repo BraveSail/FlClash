@@ -2,9 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Held while the tunnel is up, so the CPU keeps running and Wi-Fi stays out
-         of 802.11 power save with the screen off. See PowerLocks.kt. -->
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application>
         <service
