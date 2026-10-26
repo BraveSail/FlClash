@@ -9,9 +9,6 @@ object ServiceState {
 
     val runState = machine.runState
 
-    val isRunRequested: Boolean
-        get() = machine.isRunRequested
-
     fun attachFlutterEngine(engine: FlutterEngine) =
         AndroidServiceStateHost.attachFlutterEngine(engine)
 
@@ -26,7 +23,7 @@ object ServiceState {
 
     suspend fun handleVpnRevokeAction() = machine.handleVpnRevokeAction()
 
-    suspend fun awaitRunTime(): Long = machine.awaitRunTime()
+    suspend fun refresh(): Long = machine.refresh()
 
     fun requestStart(): Deferred<Boolean> = machine.requestStart()
 

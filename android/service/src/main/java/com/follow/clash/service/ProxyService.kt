@@ -24,11 +24,6 @@ class ProxyService : Service(), ManagedService {
         super.onLowMemory()
     }
 
-    override fun onTrimMemory(level: Int) {
-        trimCoreMemory(level)
-        super.onTrimMemory(level)
-    }
-
     inner class LocalBinder : Binder() {
         val service: ProxyService
             get() = this@ProxyService

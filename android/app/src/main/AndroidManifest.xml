@@ -27,7 +27,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
 
     <application
         android:name=".FlClashApplication"
@@ -46,10 +45,6 @@
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
-            <!-- install-config links go through app_links; Flutter would also push them as routes. -->
-            <meta-data
-                android:name="flutter_deeplinking_enabled"
-                android:value="false" />
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -121,5 +116,23 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Impeller's Vulkan backend null-dereferences inside the Adreno driver:
+             `vkCmdBeginRenderPass` calls into /vendor/lib64/hw/vulkan.adreno.so and
+             the raster thread takes a SIGSEGV at fault address 0x1c. Nothing above
+             the driver chooses that; it is below libflutter, so the app cannot fix
+             it and the platform driver is not ours to update.
+
+             Turning Impeller off is the switch that takes effect: the engine reads
+             this key (it is in libflutter.so and in the embedding's flag table) and
+             falls back to Skia, which draws through OpenGL ES on Android and never
+             enters the Vulkan driver. Selecting Impeller's OpenGL ES backend
+             instead would keep Impeller, but that key is not honoured from the
+             manifest on this engine - a build with
+             io.flutter.embedding.android.ImpellerBackend=opengles still reported
+             "Using the Impeller rendering backend (Vulkan)". -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
     </application>
 </manifest>

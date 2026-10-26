@@ -11,7 +11,6 @@ import androidx.core.content.getSystemService
 import com.follow.clash.common.Components
 import com.follow.clash.common.GlobalState
 import com.follow.clash.common.QuickAction
-import com.follow.clash.common.ensureNotificationChannel
 import com.follow.clash.common.quickIntent
 import com.follow.clash.common.receiveBroadcastFlow
 import com.follow.clash.common.startForeground
@@ -23,9 +22,9 @@ import com.follow.clash.service.models.NotificationParams
 import com.follow.clash.service.models.getSpeedTrafficText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -51,36 +50,31 @@ internal class NotificationModule(
     private val scope: CoroutineScope,
 ) : ServiceModule {
     override fun start() {
-        service.ensureNotificationChannel()
         update(ServiceConfig.notificationParams.value.extended)
         scope.launch {
-            // Some ROMs, vivo's among them, drop updates posted behind the
-            // keyguard, so unlocking restarts the loop to post once more.
-            // SystemUI, an app, sends USER_PRESENT, which a receiver that is
-            // not exported never gets; all three actions are protected.
-            service.receiveBroadcastFlow(exported = true) {
+            val screenFlow = service.receiveBroadcastFlow {
                 addAction(Intent.ACTION_SCREEN_ON)
                 addAction(Intent.ACTION_SCREEN_OFF)
-                addAction(Intent.ACTION_USER_PRESENT)
             }.map { intent ->
-                intent.action != Intent.ACTION_SCREEN_OFF
+                intent.action == Intent.ACTION_SCREEN_ON
             }.onStart {
                 emit(isScreenOn())
-            }.collectLatest { screenOn ->
-                if (!screenOn) return@collectLatest
-                combine(
-                    flow {
-                        while (true) {
-                            delay(1_000)
-                            emit(Unit)
-                        }
-                    },
-                    ServiceConfig.notificationParams,
-                ) { _, params ->
-                    params.extended
-                }.distinctUntilChanged()
-                    .collect(::update)
             }
+
+            combine(
+                flow {
+                    while (true) {
+                        delay(1_000)
+                        emit(Unit)
+                    }
+                },
+                ServiceConfig.notificationParams,
+                screenFlow,
+            ) { _, params, screenOn ->
+                params.takeIf { screenOn }?.extended
+            }.filterNotNull()
+                .distinctUntilChanged()
+                .collect(::update)
         }
     }
 
@@ -108,8 +102,6 @@ internal class NotificationModule(
         }
     }
 
-    private val stopIntent by lazy { QuickAction.STOP.quickIntent.toPendingIntent }
-
     private fun update(params: ExtendedNotificationParams) {
         service.startForeground(
             with(notificationBuilder) {
@@ -117,7 +109,11 @@ internal class NotificationModule(
                 setContentText(params.contentText)
                 clearActions()
                 if (params.showStopAction) {
-                    addAction(0, params.stopText, stopIntent)
+                    addAction(
+                        0,
+                        params.stopText,
+                        QuickAction.STOP.quickIntent.toPendingIntent,
+                    )
                 }
                 build()
             },

@@ -11,7 +11,6 @@ import com.follow.clash.common.GlobalState
 import com.follow.clash.common.intent
 import com.follow.clash.core.Core
 import com.follow.clash.service.ManagedService
-import com.follow.clash.service.NetworkObserver
 import com.follow.clash.service.ProxyService
 import com.follow.clash.service.ServiceConfig
 import com.follow.clash.service.VpnService
@@ -31,26 +30,21 @@ import kotlin.coroutines.resume
 object ServiceController {
     private val lock = Mutex()
     private var binding: ManagedServiceBinding? = null
-
     @Volatile
-    internal var runtime: ServiceRuntime? = null
-        private set
+    private var runTimeMillis = 0L
+
+    suspend fun unbind() = lock.withLock {
+        clearBinding()
+    }
 
     private fun clearBinding() {
         binding?.unbind()
         binding = null
     }
 
-    // The Core listens exactly while a run exists, so every path that ends one closes it.
-    private fun release() {
-        clearBinding()
-        runtime = null
-        Core.stopListener()
-    }
-
-    fun invokeMethod(data: String, callback: (ByteArray) -> Unit): Result<Unit> = runCatching {
+    fun invokeMethod(data: String, callback: (String) -> Unit): Result<Unit> = runCatching {
         Core.invokeMethod(data) { result ->
-            callback(result ?: ByteArray(0))
+            callback(result.orEmpty())
         }
     }
 
@@ -58,7 +52,6 @@ object ServiceController {
         initParams: String,
         setupParams: String,
     ): Result<String> = runCatching {
-        NetworkObserver.start()
         suspendCancellableCoroutine { continuation ->
             Core.quickSetup(initParams, setupParams) { result ->
                 continuation.resume(result.orEmpty())
@@ -66,11 +59,11 @@ object ServiceController {
         }
     }
 
-    fun setEventListener(callback: ((ByteArray) -> Unit)?): Result<Unit> = runCatching {
+    fun setEventListener(callback: ((String?) -> Unit)?): Result<Unit> = runCatching {
         Core.updateEventListener(callback)
     }
 
-    suspend fun start(options: VpnOptions): Boolean = lock.withLock {
+    suspend fun start(options: VpnOptions): Long = lock.withLock {
         ServiceConfig.updateVpnOptions(options)
         val nextIntent = if (options.enable) {
             VpnService::class.intent
@@ -89,12 +82,13 @@ object ServiceController {
             binding = nextBinding
             nextBinding.bind().onFailure { error ->
                 GlobalState.log("Unable to bind background service: $error")
-                release()
-                return@withLock false
+                clearBinding()
+                runTimeMillis = 0L
+                return@withLock runTimeMillis
             }
         }
 
-        val currentBinding = binding ?: return@withLock false
+        val currentBinding = binding ?: return@withLock 0L
         val result = currentBinding.useService { service -> service.start() }
         if (result.isFailure) {
             GlobalState.log("Unable to start background service: ${result.exceptionOrNull()}")
@@ -102,21 +96,20 @@ object ServiceController {
                 .onFailure { error ->
                     GlobalState.log("Unable to clean up failed background service start: $error")
                 }
-            release()
-            return@withLock false
+            clearBinding()
+            runTimeMillis = 0L
+            return@withLock runTimeMillis
         }
 
-        Core.startListener()
-        runtime = ServiceRuntime(
-            vpn = options.enable,
-            startedAtMillis = runtime?.startedAtMillis ?: System.currentTimeMillis(),
-        )
-        true
+        if (runTimeMillis == 0L) {
+            runTimeMillis = System.currentTimeMillis()
+        }
+        runTimeMillis
     }
 
     suspend fun stop() = lock.withLock {
         tearDownServices()
-        release()
+        runTimeMillis = 0L
     }
 
     private suspend fun tearDownServices() {
@@ -140,6 +133,12 @@ object ServiceController {
         }
     }
 
+    suspend fun isVpnServiceActive(): Boolean = lock.withLock {
+        runTimeMillis != 0L && binding?.component == VpnService::class.intent.component
+    }
+
+    fun getRunTimeMillis(): Long = runTimeMillis
+
     private fun handleServiceDisconnected(
         disconnectedBinding: ManagedServiceBinding,
         message: String,
@@ -151,7 +150,8 @@ object ServiceController {
                     return@withLock false
                 }
                 GlobalState.log("Background service disconnected: $message")
-                release()
+                clearBinding()
+                runTimeMillis = 0L
                 true
             }
             if (wasCurrent) {
