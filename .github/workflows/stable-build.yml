@@ -101,6 +101,10 @@ jobs:
         env:
           ANDROID_NDK_HOME: ${{ steps.build-ndk.outputs.ndk-path }}
           BUILD_ARCH: ${{ inputs.android_arch || 'arm64' }}
+          # The hub this build belongs to. The core reads it at link time and
+          # takes its configuration from there, so the app carries no address,
+          # no token and no idea that a mesh exists.
+          HUB_URL: ${{ vars.HUB_URL }}
         run: |
           set -euo pipefail
           if [ "$BUILD_ARCH" = "all" ]; then
@@ -146,6 +150,8 @@ jobs:
           flutter pub get
 
       - name: Build Windows stable artifact
+        env:
+          HUB_URL: ${{ vars.HUB_URL }}
         run: dart setup.dart windows --env stable
 
       - name: Upload Windows artifact

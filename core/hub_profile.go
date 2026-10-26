@@ -8,6 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	meshident "github.com/metacubex/mihomo/component/mesh"
 	"github.com/metacubex/mihomo/component/hubprofile"
 	"github.com/metacubex/mihomo/config"
 	C "github.com/metacubex/mihomo/constant"
@@ -132,5 +133,38 @@ func hubBlockFromAppliedConfig() *hubprofile.Config {
 		log.Debugln("[Profile] the configuration could not be read for a hub block: %s", err.Error())
 		return nil
 	}
-	return raw.Hub
+	if raw.Hub != nil && raw.Hub.URL != "" {
+		return raw.Hub
+	}
+	return builtInHub()
+}
+
+// builtInHub is the hub this build was linked against, if any.
+//
+// The mesh belongs to the core, not to the program that starts it: a build
+// carrying a hub address pulls its own configuration from that hub and keeps
+// it current, so an app can be stock - no token field, no address field, no
+// idea that a mesh exists - and the device still joins one.
+//
+// The identity is the device's own, derived from the machine it runs on: the
+// hub is told which device this is by the key that signs the request, never by
+// a name the program chose.
+func builtInHub() *hubprofile.Config {
+	if C.HubURL == "" {
+		return nil
+	}
+	identity := meshident.Derive()
+	if identity.ID == "" {
+		log.Warnln("[Profile] this build belongs to %s but the machine has no identity to answer with", C.HubURL)
+		return nil
+	}
+	return &hubprofile.Config{
+		URL: C.HubURL,
+		ID:  identity.ID,
+		Keep: map[string]any{
+			"mesh.directory-id": identity.ID,
+			"mesh.device-name":  identity.Name,
+			"mesh.device-os":    identity.OS,
+		},
+	}
 }
