@@ -39,16 +39,23 @@ class BuildConfig {
   );
 
 
-  /// The hub this build belongs to, from the environment.
+  /// The hub this build belongs to.
   ///
   /// A core that names a hub takes its configuration from it without being
   /// told, which is what lets the app stay stock: no address, no token, no
-  /// notion that a mesh exists. CI sets HUB_URL; a local build that leaves it
-  /// unset produces a plain core.
+  /// notion that a mesh exists. A build that names none produces a plain core.
+  ///
+  /// It is read from `build_config.yaml` first, because that file is the build
+  /// input the hook is given; the environment is only a fallback. Relying on
+  /// the environment alone meant a build whose hook did not inherit it shipped
+  /// a core that silently could not reach its hub, with nothing in the artifact
+  /// to say so.
   static const hubUrlVariable = 'HUB_URL';
 
-  static String _withHub(String ldflags) {
-    final hub = (Platform.environment[hubUrlVariable] ?? '').trim();
+  static String _withHub(String ldflags, {String fromFile = ''}) {
+    final hub = fromFile.trim().isNotEmpty
+        ? fromFile.trim()
+        : (Platform.environment[hubUrlVariable] ?? '').trim();
     if (hub.isEmpty) {
       return ldflags;
     }
@@ -66,7 +73,10 @@ class BuildConfig {
     if (yaml == null) return _defaults;
     return BuildConfig(
       tags: yaml['tags'] as String? ?? _defaults.tags,
-      goLdflags: _withHub(yaml['go_ldflags'] as String? ?? _defaults.goLdflags),
+      goLdflags: _withHub(
+        yaml['go_ldflags'] as String? ?? _defaults.goLdflags,
+        fromFile: (yaml['hub_url'] as String?) ?? '',
+      ),
       coreVersion: yaml['core_version'] as String? ?? _defaults.coreVersion,
       coreDir: yaml['core_dir'] as String? ?? _defaults.coreDir,
       coreName: yaml['core_name'] as String? ?? _defaults.coreName,

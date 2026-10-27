@@ -97,6 +97,18 @@ jobs:
           flutter --version
           flutter pub get
 
+      - name: Name the hub in the build config
+        shell: bash
+        env:
+          HUB_URL: ${{ vars.HUB_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HUB_URL:-}" ]; then
+            echo "HUB_URL is unset; the build will not name a hub" >&2
+            exit 1
+          fi
+          printf 'hub_url: "%s"\n' "$HUB_URL" >> build_config.yaml
+          grep -n '^hub_url:' build_config.yaml
       - name: Build Android stable artifact
         env:
           ANDROID_NDK_HOME: ${{ steps.build-ndk.outputs.ndk-path }}
@@ -149,6 +161,18 @@ jobs:
           flutter --version
           flutter pub get
 
+      - name: Name the hub in the build config
+        shell: bash
+        env:
+          HUB_URL: ${{ vars.HUB_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HUB_URL:-}" ]; then
+            echo "HUB_URL is unset; the build will not name a hub" >&2
+            exit 1
+          fi
+          printf 'hub_url: "%s"\n' "$HUB_URL" >> build_config.yaml
+          grep -n '^hub_url:' build_config.yaml
       - name: Build Windows stable artifact
         env:
           HUB_URL: ${{ vars.HUB_URL }}
