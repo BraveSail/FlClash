@@ -104,6 +104,11 @@ func applyPushedProfile(pulled []byte) error {
 	updateListeners(currentConfig)
 	bumpRouteEpoch()
 	configMu.Unlock()
+	// The app reads a profile from its own file, not from the core: its proxy
+	// list, its groups and its rules all come from there. A core that keeps the
+	// pulled profile to itself leaves the app showing whatever it was installed
+	// with, which is how a device ends up "connected" with an empty proxy page.
+	publishToAppProfile(pulled)
 	return nil
 }
 
