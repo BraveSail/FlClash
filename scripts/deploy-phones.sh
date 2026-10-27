@@ -28,6 +28,9 @@ for DEV in $(adb devices | awk 'NR>1 && $2=="device"{print $1}'); do
   adb -s "$DEV" shell pm install -r /data/local/tmp/flclash.apk 2>&1 | tail -1
   adb -s "$DEV" shell "pm dump com.follow.clash | grep -m1 lastUpdateTime" 2>&1 | tail -1
 
+  # Nothing is imported here. The core is what subscribes: started, it pulls the
+  # profile with its own key and writes it where the app reads it, so a device
+  # that has never seen a subscription still ends up with one.
   adb -s "$DEV" shell "am broadcast -a com.follow.clash.intent.action.VPN_START_REQUESTED -n com.follow.clash/.ServiceBroadcastReceiver" >/dev/null 2>&1
 done
 

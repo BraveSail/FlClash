@@ -24,6 +24,7 @@ class CoreAction extends _$CoreAction {
   }
 
   Future<void> startCore() async {
+    await _ensureLocalProfile();
     ref.read(coreStatusProvider.notifier).value = CoreStatus.connecting;
     try {
       final result = await startLifecycle();
@@ -32,6 +33,30 @@ class CoreAction extends _$CoreAction {
       ref.read(coreStatusProvider.notifier).value = CoreStatus.disconnected;
       dialogs.showNotifier(error.toString(), level: MessageLevel.error);
     }
+  }
+
+  /// A client with no profile hands the core a configuration nobody wrote,
+  /// and a core that never runs never gets to write one: the two would wait
+  /// for each other forever. So the first start leaves an empty local profile
+  /// behind - the place this build's core fills from the hub it was built for.
+  /// It names no address and no subscription: the app has nothing to point at.
+  Future<void> _ensureLocalProfile() async {
+    if (ref.read(profilesProvider).isNotEmpty) {
+      return;
+    }
+    final profile = Profile(
+      id: DateTime.now().millisecondsSinceEpoch,
+      type: ProfileType.file,
+      label: 'config',
+      autoUpdateDuration: const Duration(minutes: 60),
+    );
+    final path = await appPath.getProfilePath(profile.id.toString());
+    await File(path).writeAsString(
+      'mode: rule\r\nlog-level: info\r\nrules:\r\n  - MATCH,DIRECT\r\n',
+      flush: true,
+    );
+    ref.read(profilesProvider.notifier).put(profile);
+    ref.read(currentProfileIdProvider.notifier).value = profile.id;
   }
 
   @protected
