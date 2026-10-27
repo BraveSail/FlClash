@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/log"
 )
 
@@ -63,6 +64,15 @@ func publishToAppProfile(pulled []byte) {
 // support directory, while the android app holds them under the files directory
 // the platform hands it.
 func appDataDir() (dir string, profiles string, ok bool) {
+	// The core is handed the app's data directory, and under the helper it runs
+	// as a service account whose own profile directory is somewhere else
+	// entirely. That hand-off is the only reliable answer, so it comes first.
+	if home := strings.TrimSpace(C.Path.HomeDir()); home != "" {
+		profiles := filepath.Join(home, "profiles")
+		if info, err := os.Stat(profiles); err == nil && info.IsDir() {
+			return home, profiles, true
+		}
+	}
 	if runtime.GOOS == "android" {
 		// The core runs as the app's own user, so the app's directory is its own.
 		const base = "/data/data/com.follow.clash"
