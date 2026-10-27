@@ -108,7 +108,12 @@ func currentProfileID(dir string) string {
 	}
 	if runtime.GOOS == "android" {
 		if raw, err := os.ReadFile("/data/data/com.follow.clash/shared_prefs/FlutterSharedPreferences.xml"); err == nil {
-			return profileIDFromXML(string(raw))
+			// Android keeps the same json blob, escaped inside the platform's
+			// own file: the id is not an attribute there, it is a field of the
+			// configuration the plugin wrote.
+			if text := androidConfigJSON(string(raw)); text != "" {
+				return profileIDFromJSON([]byte(`{"flutter.config":` + strconv.Quote(text) + `}`))
+			}
 		}
 	}
 	return ""
@@ -136,14 +141,22 @@ func profileIDFromJSON(raw []byte) string {
 	return ""
 }
 
-var preferenceString = regexp.MustCompile(`name="flutter\.currentProfileId"[^>]*>([0-9]+)<`)
+var androidConfigValue = regexp.MustCompile(`<string name="flutter\.config">(.*?)</string>`)
 
-func profileIDFromXML(raw string) string {
-	match := preferenceString.FindStringSubmatch(raw)
+func androidConfigJSON(raw string) string {
+	match := androidConfigValue.FindStringSubmatch(raw)
 	if len(match) != 2 {
 		return ""
 	}
-	return strings.TrimSpace(match[1])
+	text := match[1]
+	replacer := strings.NewReplacer(
+		"&quot;", `"`,
+		"&apos;", "'",
+		"&lt;", "<",
+		"&gt;", ">",
+		"&amp;", "&",
+	)
+	return replacer.Replace(text)
 }
 
 func numericID(value any) string {
