@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -79,6 +80,44 @@ func startMeshHub() {
 	meshHubMu.Unlock()
 	log.Infoln("[Profile] this device takes its configuration from %s as %q", block.URL, block.ID)
 	client.Start(ctx)
+	go publishLoop(ctx, *block)
+}
+
+// publishLoop keeps the app's own profile file equal to the configuration this
+// device runs.
+//
+// The pull only calls back when the hub's answer changes, and an unchanged
+// answer is a 304 with no callback at all - so a device that started before the
+// app wrote its profile would never bring the two together. Watching the file
+// the pull keeps is what makes the app's view follow the core's, whatever the
+// hub happens to answer.
+func publishLoop(ctx context.Context, block hubprofile.Config) {
+	id := strings.TrimSpace(block.ID)
+	if id == "" {
+		return
+	}
+	path := block.File
+	if strings.TrimSpace(path) == "" {
+		path = filepath.Join(C.Path.HomeDir(), "profile-"+id+".yaml")
+	}
+	publish := func() {
+		pulled, err := os.ReadFile(path)
+		if err != nil || len(pulled) == 0 {
+			return
+		}
+		publishToAppProfile(pulled)
+	}
+	publish()
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			publish()
+		}
+	}
 }
 
 func stopMeshHub() {
