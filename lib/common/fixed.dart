@@ -32,12 +32,6 @@ class FixedList<T> {
     return FixedList._(maxLength, _list, _revision + 1);
   }
 
-  FixedList<T> replace(Map<int, T> items) {
-    items.forEach((index, item) => _list[index] = item);
-    _snapshot = null;
-    return FixedList._(maxLength, _list, _revision + 1);
-  }
-
   List<T> get list => _snapshot ??= List.unmodifiable(_list);
 
   int get length => _list.length;
@@ -60,19 +54,11 @@ class FixedList<T> {
 
 /// Restores the head that [latest] trimmed off [current] so a paused view
 /// stays anchored; the result is capped at [limit] from the tail.
-List<T> retainTrimmedHead<T>(
-  List<T> current,
-  List<T> latest,
-  int limit, {
-  Object Function(T item)? keyOf,
-}) {
+List<T> retainTrimmedHead<T>(List<T> current, List<T> latest, int limit) {
   if (current.isEmpty || latest.isEmpty) {
     return latest;
   }
-  final first = latest.first;
-  final index = keyOf == null
-      ? current.indexWhere((item) => identical(item, first))
-      : current.indexWhere((item) => keyOf(item) == keyOf(first));
+  final index = current.indexWhere((item) => identical(item, latest.first));
   if (index == 0) {
     return latest;
   }

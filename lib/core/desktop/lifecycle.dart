@@ -710,12 +710,11 @@ final class DesktopCoreLifecycle implements DesktopCoreLifecycleController {
       return;
     }
     switch (event) {
-      case TransportDisconnected(:final generation, :final error)
+      case TransportDisconnected(:final generation)
           when generation == running.session.connectionGeneration:
         _handleUnexpectedDisconnect(
           running.session,
           code: 'unexpected_disconnect',
-          cause: error,
         );
       case TransportFailed(:final error, :final stackTrace):
         _handleUnexpectedDisconnect(

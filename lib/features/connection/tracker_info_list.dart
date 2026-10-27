@@ -5,7 +5,6 @@ import 'package:material_ui/material_ui.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 import 'tracker_info_item.dart';
-import 'tracker_info_table.dart';
 
 class TrackerInfoListController extends ValueNotifier<TrackerInfosState> {
   TrackerInfoListController() : super(const TrackerInfosState());
@@ -29,7 +28,6 @@ class TrackerInfoListController extends ValueNotifier<TrackerInfosState> {
               value.trackerInfos,
               trackerInfos,
               pausedMaxRequestsLength,
-              keyOf: (trackerInfo) => trackerInfo.id,
             ),
     );
   }
@@ -46,25 +44,23 @@ class TrackerInfoListController extends ValueNotifier<TrackerInfosState> {
 class TrackerInfoList extends StatelessWidget {
   final List<TrackerInfo> trackerInfos;
   final String detailTitle;
-  final RecordTable<TrackerInfo>? table;
   final ScrollController? controller;
   final bool reverse;
   final bool shrinkWrap;
   final ScrollPhysics? physics;
   final EdgeInsetsGeometry? padding;
-  final Widget? Function(TrackerInfo trackerInfo)? actionBuilder;
+  final Widget? Function(TrackerInfo trackerInfo)? trailingBuilder;
 
   const TrackerInfoList({
     super.key,
     required this.trackerInfos,
     required this.detailTitle,
-    this.table,
     this.controller,
     this.reverse = false,
     this.shrinkWrap = false,
     this.physics,
     this.padding,
-    this.actionBuilder,
+    this.trailingBuilder,
   });
 
   @override
@@ -76,18 +72,12 @@ class TrackerInfoList extends StatelessWidget {
       controller: controller,
       padding: padding,
       itemCount: trackerInfos.length,
-      extentEstimation: table?.estimateExtent ?? recordListExtentEstimation,
-      separatorBuilder: (_, _) => table == null
-          ? const SizedBox(height: recordListGap)
-          : const SizedBox.shrink(),
+      separatorBuilder: (_, _) => const Divider(height: 0),
       itemBuilder: (_, index) => _buildTrackerInfoItem(
         context,
         trackerInfos[index],
-        isLive: false,
         detailTitle: detailTitle,
-        table: table,
-        striped: index.isOdd,
-        actionBuilder: actionBuilder,
+        trailingBuilder: trailingBuilder,
       ),
     );
   }
@@ -98,44 +88,32 @@ class TrackerInfoList extends StatelessWidget {
 class TrackerInfoAnimatedList extends StatelessWidget {
   final List<TrackerInfo> trackerInfos;
   final String detailTitle;
-  final RecordTable<TrackerInfo>? table;
   final ScrollController? controller;
   final EdgeInsetsGeometry? padding;
-  final Widget? Function(TrackerInfo trackerInfo)? actionBuilder;
+  final Widget? Function(TrackerInfo trackerInfo)? trailingBuilder;
 
   const TrackerInfoAnimatedList({
     super.key,
     required this.trackerInfos,
     required this.detailTitle,
-    this.table,
     this.controller,
     this.padding,
-    this.actionBuilder,
+    this.trailingBuilder,
   });
 
   @override
   Widget build(BuildContext context) {
-    final table = this.table;
-    final positions = table == null
-        ? const <String, int>{}
-        : {
-            for (final (index, trackerInfo) in trackerInfos.indexed)
-              trackerInfo.id: index,
-          };
     return KeyedAnimatedList<TrackerInfo>(
       controller: controller,
       padding: padding,
       items: trackerInfos,
       keyOf: (trackerInfo) => trackerInfo.id,
-      separator: table == null ? const SizedBox(height: recordListGap) : null,
+      separator: const Divider(height: 0),
       itemBuilder: (context, trackerInfo) => _buildTrackerInfoItem(
         context,
         trackerInfo,
-        isLive: true,
         detailTitle: detailTitle,
-        table: table,
-        striped: positions[trackerInfo.id]?.isOdd ?? false,
-        actionBuilder: actionBuilder,
+        trailingBuilder: trailingBuilder,
       ),
     );
   }
@@ -144,29 +122,16 @@ class TrackerInfoAnimatedList extends StatelessWidget {
 Widget _buildTrackerInfoItem(
   BuildContext context,
   TrackerInfo trackerInfo, {
-  required bool isLive,
   required String detailTitle,
-  required RecordTable<TrackerInfo>? table,
-  required bool striped,
-  required Widget? Function(TrackerInfo trackerInfo)? actionBuilder,
+  required Widget? Function(TrackerInfo trackerInfo)? trailingBuilder,
 }) {
-  if (table != null) {
-    return TrackerInfoTableRow(
-      key: Key(trackerInfo.id),
-      trackerInfo: trackerInfo,
-      table: table,
-      striped: striped,
-      detailTitle: detailTitle,
-    );
-  }
   return TrackerInfoItem(
     key: Key(trackerInfo.id),
     trackerInfo: trackerInfo,
-    isLive: isLive,
     onClickKeyword: (value) {
       context.commonScaffoldState?.addKeyword(value);
     },
-    action: actionBuilder?.call(trackerInfo),
+    trailing: trailingBuilder?.call(trackerInfo),
     detailTitle: detailTitle,
   );
 }

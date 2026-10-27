@@ -1,5 +1,4 @@
-import 'package:fl_clash/ui/measure.dart';
-import 'package:fl_clash/ui/typography.dart';
+import 'package:fl_clash/common/measure.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -30,6 +29,21 @@ void main() {
     expect(scaled.height, greaterThan(baseline.height));
   });
 
+  testWidgets('an explicit style overrides the size of an unstyled text', (
+    tester,
+  ) async {
+    final measure = await _measureIn(tester);
+    final small = measure.computeTextSize(
+      const Text('FlClash'),
+      style: const TextStyle(fontSize: 10),
+    );
+    final large = measure.computeTextSize(
+      const Text('FlClash'),
+      style: const TextStyle(fontSize: 40),
+    );
+    expect(large.width, greaterThan(small.width));
+  });
+
   testWidgets('overflow is reported only when the text cannot fit', (
     tester,
   ) async {
@@ -56,12 +70,12 @@ void main() {
     tester,
   ) async {
     final measure = await _measureIn(tester);
-    final subheadline = measure.textHeight(AppTextStyle.subheadline);
-    expect(subheadline, greaterThan(0));
-    expect(measure.textHeight(AppTextStyle.subheadline), subheadline);
-    expect(
-      measure.textHeight(AppTextStyle.body),
-      greaterThan(measure.textHeight(AppTextStyle.footnote)),
-    );
+    expect(measure.bodyMediumHeight, greaterThan(0));
+    expect(measure.bodyMediumHeight, measure.bodyMediumHeight);
+    expect(measure.bodyLargeHeight, greaterThan(measure.bodySmallHeight));
+    expect(measure.titleLargeHeight, greaterThan(measure.labelSmallHeight));
+    expect(measure.titleMediumHeight, greaterThan(0));
+    expect(measure.labelMediumHeight, greaterThan(0));
+    expect(measure.titleSmallHeight, greaterThan(0));
   });
 }

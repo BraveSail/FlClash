@@ -1,8 +1,8 @@
-import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/features/features.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/test_app.dart';
@@ -131,108 +131,100 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('TrackerInfoItem reads from the rule to the node', (
+  testWidgets('TrackerInfoItem lets long chain entries wrap', (
     tester,
   ) async {
+    const transport = 'direct 2404:c140:1f00:32::1b:1fbf:41641';
     await tester.pumpWidget(
       TestApp(
         wrapInProviderScope: true,
         homeBuilder: (child) => Scaffold(body: child),
         child: TrackerInfoItem(
-          trackerInfo: _tracker(
-            rulePayload: 'example.com',
-            process: 'chrome',
-            uid: 1000,
-            sourceIP: '1.2.3.4',
-            sourcePort: '8080',
-            destinationIP: '5.6.7.8',
-            destinationPort: '443',
-            host: 'example.com',
-            chains: const ['Node', 'Group'],
-          ),
+          trackerInfo: _tracker(chains: const ['PEER', transport]),
           detailTitle: 'detail',
         ),
       ),
     );
     await tester.pump();
 
-    final rule = tester.getCenter(find.text('DOMAIN-SUFFIX(example.com)'));
-    final group = tester.getCenter(find.text('Group'));
-    final node = tester.getCenter(find.text('Node'));
-    expect(rule.dx, lessThan(group.dx));
-    expect(group.dx, lessThan(node.dx));
-    expect(find.text('example.com:443  5.6.7.8'), findsOneWidget);
-    expect(find.text('chrome(1000)  ·  1.2.3.4:8080'), findsOneWidget);
+    expect(tester.widget<Text>(find.text(transport)).maxLines, 3);
     expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('TrackerInfoItem shows speed only for a live connection', (
+  testWidgets('TrackerInfoDetailView lets long chain entries wrap', (
     tester,
   ) async {
-    Future<void> pumpItem({required bool isLive}) async {
-      await tester.pumpWidget(
-        TestApp(
-          wrapInProviderScope: true,
-          homeBuilder: (child) => Scaffold(body: child),
-          child: TrackerInfoItem(
-            key: ValueKey(isLive),
-            trackerInfo: _tracker(
-              host: 'example.com',
-            ).copyWith(uploadSpeed: 2048, downloadSpeed: 4096),
-            isLive: isLive,
-            action: const SizedBox(key: ValueKey('action')),
-            detailTitle: 'detail',
-          ),
-        ),
-      );
-      await tester.pump();
-    }
-
-    await pumpItem(isLive: false);
-    expect(find.text(DateTime(2026, 1, 1, 10, 30).showFull), findsOneWidget);
-    expect(find.textContaining('4KB/s'), findsNothing);
-
-    await pumpItem(isLive: true);
-    expect(find.text(DateTime(2026, 1, 1, 10, 30).showFull), findsNothing);
-    expect(find.textContaining('4KB/s'), findsOneWidget);
-    expect(
-      find.descendant(
-        of: find.byType(RecordHeader),
-        matching: find.byKey(const ValueKey('action')),
-      ),
-      findsOneWidget,
-    );
-
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
-
-  testWidgets('TrackerInfoDetailView lists the chain from group to node', (
-    tester,
-  ) async {
+    const transport = 'direct 2404:c140:1f00:32::1b:1fbf:41641';
     await tester.pumpWidget(
       TestApp(
         homeBuilder: (child) => Scaffold(body: child),
         child: SheetProvider(
           type: SheetType.page,
           child: TrackerInfoDetailView(
-            trackerInfo: _tracker(chains: const ['Node', 'Group']),
+            trackerInfo: _tracker(chains: const [transport]),
           ),
         ),
       ),
     );
     await tester.pump();
+
     await tester.scrollUntilVisible(
-      find.text('Node'),
+      find.text(transport),
       100,
       scrollable: find.byType(Scrollable),
     );
+    expect(tester.widget<Text>(find.text(transport)).maxLines, 3);
+    expect(tester.takeException(), isNull);
 
-    expect(
-      tester.getCenter(find.text('Group')).dx,
-      lessThan(tester.getCenter(find.text('Node')).dx),
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('TrackerInfoDetailView copies a chain on tap', (tester) async {
+    final calls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        calls.add(call);
+        return null;
+      },
     );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    const transport = 'direct 2404:c140:1f00:32::1b:1fbf:41641';
+    await tester.pumpWidget(
+      TestApp(
+        homeBuilder: (child) => Scaffold(body: child),
+        child: SheetProvider(
+          type: SheetType.page,
+          child: TrackerInfoDetailView(
+            trackerInfo: _tracker(chains: const [transport]),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.scrollUntilVisible(
+      find.text(transport),
+      100,
+      scrollable: find.byType(Scrollable),
+    );
+    await tester.tap(find.text(transport));
+    await tester.pump();
+    await tester.pump();
+
+    final sets = calls
+        .where((call) => call.method == 'Clipboard.setData')
+        .toList();
+    expect(sets, isNotEmpty);
+    expect((sets.last.arguments as Map)['text'], transport);
 
     await tester.pumpWidget(const SizedBox.shrink());
   });

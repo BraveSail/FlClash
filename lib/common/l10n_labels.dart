@@ -1,5 +1,4 @@
 import 'package:fl_clash/enum/enum.dart';
-import 'package:fl_clash/ui/color.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'app_localizations.dart';
@@ -13,23 +12,23 @@ extension PageLabelL10n on PageLabel {
       PageLabel.profiles => appLocalizations.profiles,
       PageLabel.tools => appLocalizations.tools,
       PageLabel.logs => appLocalizations.logs,
-      PageLabel.requests => appLocalizations.recentRequests,
+      PageLabel.requests => appLocalizations.requests,
       PageLabel.resources => appLocalizations.resources,
-      PageLabel.connections => appLocalizations.liveConnections,
-      PageLabel.dns => appLocalizations.dnsQueries,
+      PageLabel.connections => appLocalizations.connections,
     };
   }
-}
 
-extension DnsQueryInitiatorL10n on DnsQueryInitiator {
-  String get label {
+  String? get description {
     final appLocalizations = currentAppLocalizations;
     return switch (this) {
-      DnsQueryInitiator.app => appLocalizations.app,
-      DnsQueryInitiator.rule => appLocalizations.rule,
-      DnsQueryInitiator.direct => appLocalizations.direct,
-      DnsQueryInitiator.proxy => appLocalizations.proxies,
-      DnsQueryInitiator.other => appLocalizations.other,
+      PageLabel.logs => appLocalizations.logsDesc,
+      PageLabel.requests => appLocalizations.requestsDesc,
+      PageLabel.resources => appLocalizations.resourcesDesc,
+      PageLabel.connections => appLocalizations.connectionsDesc,
+      PageLabel.dashboard ||
+      PageLabel.proxies ||
+      PageLabel.profiles ||
+      PageLabel.tools => null,
     };
   }
 }
@@ -59,9 +58,9 @@ extension ProxyCardTypeL10n on ProxyCardType {
   String get label {
     final appLocalizations = currentAppLocalizations;
     return switch (this) {
-      ProxyCardType.loose => appLocalizations.loose,
-      ProxyCardType.standard => appLocalizations.standard,
-      ProxyCardType.compact => appLocalizations.compact,
+      ProxyCardType.expand => appLocalizations.expand,
+      ProxyCardType.shrink => appLocalizations.shrink,
+      ProxyCardType.min => appLocalizations.min,
     };
   }
 }
@@ -75,13 +74,16 @@ extension HotActionL10n on HotAction {
       HotAction.mode => appLocalizations.actionMode,
       HotAction.proxy => appLocalizations.actionProxy,
       HotAction.tun => appLocalizations.actionTun,
-      HotAction.ruleMode => appLocalizations.actionRuleMode,
-      HotAction.globalMode => appLocalizations.actionGlobalMode,
-      HotAction.directMode => appLocalizations.actionDirectMode,
-      HotAction.delayTest => appLocalizations.actionDelayTest,
-      HotAction.updateProfiles => appLocalizations.actionUpdateProfiles,
-      HotAction.copyEnv => appLocalizations.copyEnvVar,
-      HotAction.exit => appLocalizations.exit,
+    };
+  }
+}
+
+extension RouteModeL10n on RouteMode {
+  String get label {
+    final appLocalizations = currentAppLocalizations;
+    return switch (this) {
+      RouteMode.bypassPrivate => appLocalizations.routeModeBypassPrivate,
+      RouteMode.config => appLocalizations.routeModeConfig,
     };
   }
 }
@@ -96,14 +98,19 @@ extension RestoreStrategyL10n on RestoreStrategy {
   }
 }
 
-extension ColorStyleL10n on ColorStyle {
+extension DynamicSchemeVariantL10n on DynamicSchemeVariant {
   String get label {
     final appLocalizations = currentAppLocalizations;
     return switch (this) {
-      ColorStyle.vivid => appLocalizations.vividStyle,
-      ColorStyle.tinted => appLocalizations.tintedStyle,
-      ColorStyle.soft => appLocalizations.softStyle,
-      ColorStyle.monochrome => appLocalizations.monochromeScheme,
+      DynamicSchemeVariant.tonalSpot => appLocalizations.tonalSpotScheme,
+      DynamicSchemeVariant.fidelity => appLocalizations.fidelityScheme,
+      DynamicSchemeVariant.monochrome => appLocalizations.monochromeScheme,
+      DynamicSchemeVariant.neutral => appLocalizations.neutralScheme,
+      DynamicSchemeVariant.vibrant => appLocalizations.vibrantScheme,
+      DynamicSchemeVariant.expressive => appLocalizations.expressiveScheme,
+      DynamicSchemeVariant.content => appLocalizations.contentScheme,
+      DynamicSchemeVariant.rainbow => appLocalizations.rainbowScheme,
+      DynamicSchemeVariant.fruitSalad => appLocalizations.fruitSaladScheme,
     };
   }
 }
@@ -113,10 +120,7 @@ extension LocaleL10n on Locale {
     final appLocalizations = currentAppLocalizations;
     return switch (toString()) {
       'en' => appLocalizations.en,
-      'es' => appLocalizations.es,
-      'fr' => appLocalizations.fr,
       'ja' => appLocalizations.ja,
-      'ko' => appLocalizations.ko,
       'ru' => appLocalizations.ru,
       'zh_CN' => appLocalizations.zhCN,
       final code => code,

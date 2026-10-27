@@ -11,10 +11,6 @@ class Scripts extends Table {
 
   DateTimeColumn get lastUpdateTime => dateTime()();
 
-  TextColumn get url => text().nullable()();
-
-  IntColumn get order => integer().nullable()();
-
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -24,34 +20,19 @@ class ScriptsDao extends DatabaseAccessor<Database> with _$ScriptsDaoMixin {
   ScriptsDao(super.attachedDatabase);
 
   Selectable<Script> query() {
-    return scripts.readable(
-      (row) => row.toScript(),
-      orderBy: [
-        (t) => OrderingTerm(expression: t.order, nulls: NullsOrder.last),
-        (t) => OrderingTerm.asc(t.id),
-      ],
-    );
-  }
-
-  Future<void> putAll(Iterable<ScriptsCompanion> items) async {
-    await batch((b) async {
-      b.insertAllOnConflictUpdate(scripts, items);
-    });
+    return scripts.select().map((item) => item.toScript());
   }
 
   Selectable<Script> get(int scriptId) {
-    return scripts.readable(
-      (row) => row.toScript(),
-      where: (t) => t.id.equals(scriptId),
-    );
+    final stmt = scripts.select();
+    stmt.where((t) => t.id.equals(scriptId));
+    return stmt.map((it) => it.toScript());
   }
 
-  Selectable<int> ids() {
+  Selectable<String> fileNames() {
     final query = scripts.selectOnly()..addColumns([scripts.id]);
-    return query.map((row) => row.read(scripts.id)!);
+    return query.map((row) => '${row.read(scripts.id)}.js');
   }
-
-  Selectable<String> fileNames() => ids().map((id) => '$id.js');
 
   Future<void> setAll(Iterable<Script> scripts) async {
     await batch((b) async {
@@ -79,24 +60,16 @@ class ScriptsDao extends DatabaseAccessor<Database> with _$ScriptsDaoMixin {
 
 extension RawScriptExt on RawScript {
   Script toScript() {
-    return Script(
-      id: id,
-      label: label,
-      lastUpdateTime: lastUpdateTime,
-      url: url,
-      order: order,
-    );
+    return Script(id: id, label: label, lastUpdateTime: lastUpdateTime);
   }
 }
 
 extension ScriptsCompanionExt on Script {
-  ScriptsCompanion toCompanion([int? order]) {
+  ScriptsCompanion toCompanion() {
     return ScriptsCompanion.insert(
       id: Value(id),
       label: label,
       lastUpdateTime: lastUpdateTime,
-      url: Value(url),
-      order: Value(order ?? this.order),
     );
   }
 }

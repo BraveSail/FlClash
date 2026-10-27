@@ -15,9 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path/path.dart';
 import 'package:riverpod/riverpod.dart';
-
-import '../helpers/app_paths.dart';
-import '../helpers/preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockCoreHandlerInterface extends Mock implements CoreHandlerInterface {}
 
@@ -46,10 +44,13 @@ void main() {
   late _MockCoreHandlerInterface core;
   late db.Database testDatabase;
 
-  setUpAll(() async {
+  setUpAll(() {
     registerFallbackValue(0);
     home = Directory.systemTemp.createTempSync('flclash-store-');
-    await useAppPaths(home);
+    AppPath.supportDirectory = () async => home;
+    AppPath.temporaryDirectory = () async => home;
+    AppPath.cacheDirectory = () async => home;
+    AppPath.downloadDirectory = () async => home;
   });
 
   tearDownAll(() {
@@ -57,7 +58,7 @@ void main() {
   });
 
   setUp(() async {
-    await mockPreferences();
+    SharedPreferences.setMockInitialValues({});
     await preferences.setVersion(7);
     core = _MockCoreHandlerInterface();
     when(() => core.clearEffect(any())).thenAnswer((_) async => '');

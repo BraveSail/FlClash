@@ -197,6 +197,7 @@ class BootDecision {
 BootDecision resolveBootDecision({
   required BootRecord? record,
   required AppExitInfo? exitInfo,
+  required bool crashReported,
 }) {
   if (record == null || record.stage != BootStage.starting) {
     return const BootDecision();
@@ -218,7 +219,7 @@ BootDecision resolveBootDecision({
         : BootRecovery.skipAutoSetup,
     failureCount: failureCount,
     failedProfileId: record.profileId,
-    crashConfirmed: reason?.isCrash ?? false,
+    crashConfirmed: (reason?.isCrash ?? false) || crashReported,
     exitReason: reason,
   );
 }

@@ -1,11 +1,11 @@
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/common/theme.dart';
 import 'package:fl_clash/l10n/l10n.dart';
 import 'package:fl_clash/models/models.dart';
+import 'package:fl_clash/state.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
-
-import '../helpers/test_app.dart';
 
 void main() {
   testWidgets('hides expiry when both values do not fit', (tester) async {
@@ -15,12 +15,13 @@ void main() {
       MaterialApp(
         localizationsDelegates: const [
           AppLocalizations.delegate,
-          AppUiLocalizations.delegate,
           ...GlobalMaterialLocalizations.delegates,
         ],
         supportedLocales: AppLocalizations.delegate.supportedLocales,
         builder: (context, child) {
-          return wrapAppScopes(context, child!);
+          globalState.measure = Measure.of(context, 1);
+          globalState.theme = CommonTheme.of(context, 1);
+          return child!;
         },
         home: const Scaffold(
           body: SizedBox(
@@ -53,10 +54,8 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
-        builder: (context, child) => wrapAppScopes(context, child!),
         localizationsDelegates: const [
           AppLocalizations.delegate,
-          AppUiLocalizations.delegate,
           ...GlobalMaterialLocalizations.delegates,
         ],
         supportedLocales: AppLocalizations.delegate.supportedLocales,
@@ -92,12 +91,13 @@ void main() {
       MaterialApp(
         localizationsDelegates: const [
           AppLocalizations.delegate,
-          AppUiLocalizations.delegate,
           ...GlobalMaterialLocalizations.delegates,
         ],
         supportedLocales: AppLocalizations.delegate.supportedLocales,
         builder: (context, child) {
-          return wrapAppScopes(context, child!);
+          globalState.measure = Measure.of(context, 1);
+          globalState.theme = CommonTheme.of(context, 1);
+          return child!;
         },
         home: const Scaffold(
           body: SubscriptionInfoDetailView(

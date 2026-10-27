@@ -14,61 +14,46 @@ extension DateTimeExtension on DateTime {
     return true;
   }
 
-  String getLastUpdateTimeDesc(BuildContext context, {bool compact = false}) {
+  String getLastUpdateTimeDesc(BuildContext context) {
     final appLocalizations = context.appLocalizations;
     if (year <= 1970) {
       return appLocalizations.unknown;
     }
-    final (yearsAgo, monthsAgo, daysAgo, hoursAgo, minutesAgo) = compact
-        ? (
-            appLocalizations.yearsAgoShort,
-            appLocalizations.monthsAgoShort,
-            appLocalizations.daysAgoShort,
-            appLocalizations.hoursAgoShort,
-            appLocalizations.minutesAgoShort,
-          )
-        : (
-            appLocalizations.yearsAgo,
-            appLocalizations.monthsAgo,
-            appLocalizations.daysAgo,
-            appLocalizations.hoursAgo,
-            appLocalizations.minutesAgo,
-          );
     final currentDateTime = DateTime.now();
     final difference = currentDateTime.difference(this);
     final days = difference.inDays;
     if (days >= 365) {
       final years = (days / 365).floor();
-      return yearsAgo(years);
+      return appLocalizations.yearsAgo(years);
     }
     if (days >= 30) {
       final months = (days / 30).floor();
-      return monthsAgo(months);
+      return appLocalizations.monthsAgo(months);
     }
     if (days >= 1) {
-      return daysAgo(days);
+      return appLocalizations.daysAgo(days);
     }
     final hours = difference.inHours;
     if (hours >= 1) {
-      return hoursAgo(hours);
+      return appLocalizations.hoursAgo(hours);
     }
     final minutes = difference.inMinutes;
     if (minutes >= 1) {
-      return minutesAgo(minutes);
+      return appLocalizations.minutesAgo(minutes);
     }
     return appLocalizations.justNow;
   }
 
   String get show {
-    return toLocal().toString().substring(0, 10);
+    return toString().substring(0, 10);
   }
 
   String get showFull {
-    return toLocal().toString().substring(0, 19);
+    return toString().substring(0, 19);
   }
 
   String get showTime {
-    return toLocal().toString().substring(10, 19);
+    return toString().substring(10, 19);
   }
 }
 

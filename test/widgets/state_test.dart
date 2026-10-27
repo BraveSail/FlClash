@@ -1,5 +1,7 @@
-import 'package:fl_clash/ui/activate_box.dart';
-import 'package:fl_clash/ui/disabled_mask.dart';
+import 'package:fl_clash/widgets/activate_box.dart';
+import 'package:fl_clash/widgets/builder.dart';
+import 'package:fl_clash/widgets/disabled_mask.dart';
+import 'package:fl_clash/widgets/inherited.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -58,5 +60,36 @@ void main() {
     );
 
     expect(find.byType(ColorFiltered), findsNothing);
+  });
+
+  testWidgets('FloatingActionButtonExtendedBuilder defaults to extended', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FloatingActionButtonExtendedBuilder(
+          builder: (isExtended) => Text('extended: $isExtended'),
+        ),
+      ),
+    );
+
+    expect(find.text('extended: true'), findsOneWidget);
+  });
+
+  testWidgets('FloatingActionButtonExtendedBuilder reads inherited state', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CommonScaffoldFabExtendedProvider(
+          isExtended: false,
+          child: FloatingActionButtonExtendedBuilder(
+            builder: (isExtended) => Text('extended: $isExtended'),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('extended: false'), findsOneWidget);
   });
 }

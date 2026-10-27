@@ -101,35 +101,10 @@ class DAVTransport {
       'GET',
       path,
       responseType: ResponseType.bytes,
-      accept: const {200, 206},
+      accept: const {200},
     );
     final data = response.data;
-    final bytes = data is List<int> ? Uint8List.fromList(data) : Uint8List(0);
-    if (response.statusCode == 206 &&
-        !_coversWhole(response.headers.value('content-range'), bytes.length)) {
-      throw DAVException(
-        method: 'GET',
-        path: path,
-        statusCode: 206,
-        reasonPhrase: response.statusMessage,
-      );
-    }
-    return bytes;
-  }
-
-  /// Some servers answer a plain GET with a 206 that spans the whole object.
-  static bool _coversWhole(String? contentRange, int length) {
-    final match = RegExp(
-      r'^bytes\s+(\d+)-(\d+)/(\d+)$',
-      caseSensitive: false,
-    ).firstMatch(contentRange?.trim() ?? '');
-    if (match == null) {
-      return false;
-    }
-    final start = int.parse(match[1]!);
-    final end = int.parse(match[2]!);
-    final total = int.parse(match[3]!);
-    return start == 0 && end == total - 1 && total == length;
+    return data is List<int> ? Uint8List.fromList(data) : Uint8List(0);
   }
 
   Future<Response<dynamic>> _send(

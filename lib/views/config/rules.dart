@@ -1,8 +1,8 @@
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/features/features.dart';
 import 'package:fl_clash/models/clash_config.dart';
 import 'package:fl_clash/providers/providers.dart';
-import 'package:fl_clash/ui/icons/icons.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,38 +16,15 @@ class AddedRulesView extends ConsumerStatefulWidget {
 
 class _AddedRulesViewState extends ConsumerState<AddedRulesView> {
   final _key = uniqueId;
-  var _query = SearchQuery('');
-  final _searchTexts = Expando<String>();
-
-  List<Rule> _visibleRules(List<Rule> rules) {
-    return rules
-        .whereMatches(_query, (rule) => rule.searchFields, texts: _searchTexts)
-        .toList();
-  }
-
-  void _handleSearch(String query) {
-    setState(() {
-      _query = SearchQuery(query);
-    });
-  }
 
   Future<void> _handleAddOrUpdate([Rule? rule]) async {
-    final res = await showFormSheet<Rule>(
-      context: context,
-      builder: (_) => RuleForm(rule: rule),
+    final res = await dialogs.showCommonDialog<Rule>(
+      child: AddOrEditRuleDialog(rule: rule),
     );
-    if (res == null || !mounted) {
+    if (res == null) {
       return;
     }
     ref.read(globalRulesProvider.notifier).put(res);
-  }
-
-  void _handleQuickActions() {
-    showSheet<void>(
-      context: context,
-      builder: (_) =>
-          RulePresetSheet(onAdd: ref.read(globalRulesProvider.notifier).putAll),
-    );
   }
 
   void _handleSelected(int ruleId) {
@@ -59,9 +36,9 @@ class _AddedRulesViewState extends ConsumerState<AddedRulesView> {
   }
 
   void _handleSelectAll() {
-    final ids = _visibleRules(
-      ref.read(globalRulesProvider).value ?? [],
-    ).map((item) => item.id).toSet();
+    final ids =
+        ref.read(globalRulesProvider).value?.map((item) => item.id).toSet() ??
+        {};
     ref.read(itemsProvider(_key).notifier).update((selected) {
       return selected.containsAll(ids) ? {} : ids;
     });
@@ -74,133 +51,94 @@ class _AddedRulesViewState extends ConsumerState<AddedRulesView> {
       message: TextSpan(
         text: appLocalizations.deleteMultipTip(appLocalizations.rule),
       ),
-      destructive: true,
-      confirmText: appLocalizations.delete,
     );
-    if (res != true || !mounted) {
+    if (res != true) {
       return;
     }
     final selectedRules = ref.read(itemsProvider(_key));
-    final deletedIds = _visibleRules(
-      ref.read(globalRulesProvider).value ?? [],
-    ).map((item) => item.id).where(selectedRules.contains).toSet();
-    ref.read(globalRulesProvider.notifier).delAll(deletedIds);
-    ref.read(itemsProvider(_key).notifier).value = selectedRules.difference(
-      deletedIds,
-    );
+    ref.read(globalRulesProvider.notifier).delAll(selectedRules.cast<int>());
+    ref.read(itemsProvider(_key).notifier).value = {};
   }
 
   @override
   Widget build(BuildContext context) {
     final appLocalizations = context.appLocalizations;
-    final rulesState = ref.watch(globalRulesProvider);
-    final rules = _visibleRules(rulesState.value ?? []);
-    final isSearching = _query.isNotEmpty;
+    final rules = ref.watch(globalRulesProvider).value ?? [];
     final selectedRules = ref.watch(itemsProvider(_key));
-    final isSelecting = selectedRules.isNotEmpty;
-    final selectionActions = [
-      IconButtonData(
-        glyph: AppGlyphs.delete,
-        onPressed: _handleDelete,
-        tooltip: appLocalizations.delete,
-      ),
-      IconButtonData(
-        glyph: AppGlyphs.selectAll,
-        onPressed: _handleSelectAll,
-        tooltip: appLocalizations.selectAll,
-      ),
-    ];
     return CommonPopScope(
-      onPop: isSelecting
-          ? (_) {
-              ref.read(itemsProvider(_key).notifier).value = {};
-              return false;
-            }
-          : null,
-      child: CommonScaffold(
+      onPop: (_) {
+        if (selectedRules.isNotEmpty) {
+          ref.read(itemsProvider(_key).notifier).value = {};
+          return false;
+        }
+        Navigator.of(context).pop();
+        return false;
+      },
+
+      child: BaseScaffold(
         title: appLocalizations.addedRules,
-        searchState: AppBarSearchState(onSearch: _handleSearch),
         actions: [
-          if (!isSelecting)
-            IconButton(
-              tooltip: appLocalizations.add,
-              onPressed: _handleAddOrUpdate,
-              icon: const GlyphIcon(AppGlyphs.addCircle),
+          if (selectedRules.isNotEmpty) ...[
+            CommonMinIconButtonTheme(
+              child: IconButton.filledTonal(
+                tooltip: context.appLocalizations.delete,
+                onPressed: _handleDelete,
+                icon: const Icon(Icons.delete),
+              ),
             ),
+            const SizedBox(width: 2),
+          ],
+          CommonMinFilledButtonTheme(
+            child: selectedRules.isNotEmpty
+                ? FilledButton(
+                    onPressed: _handleSelectAll,
+                    child: Text(appLocalizations.selectAll),
+                  )
+                : FilledButton.tonal(
+                    onPressed: () {
+                      _handleAddOrUpdate();
+                    },
+                    child: Text(appLocalizations.add),
+                  ),
+          ),
+          const SizedBox(width: 8),
         ],
-        iconActions: [
-          if (!isSelecting)
-            IconButtonData(
-              glyph: AppGlyphs.rulePresets,
-              onPressed: _handleQuickActions,
-              tooltip: appLocalizations.quickActions,
-            ),
-        ],
-        selectionActions: isSelecting ? selectionActions : const [],
         body: NullStatusSwitcher(
-          isLoading: rulesState.isLoading,
           isEmpty: rules.isEmpty,
-          isSearching: isSearching,
           nullStatus: NullStatus(
             label: appLocalizations.nullTip(appLocalizations.rule),
             illustration: NullStatusIllustration.rules,
           ),
-          child: Builder(
-            builder: (context) => isSearching
-                ? ListView.builder(
-                    padding: _listPadding(context),
-                    itemBuilder: (_, index) =>
-                        _buildRuleItem(rules, index, selectedRules),
-                    itemExtent: ruleItemHeight,
-                    itemCount: rules.length,
-                  )
-                : ReorderableList(
-                    padding: _listPadding(context),
-                    itemBuilder: (_, index) =>
-                        ReorderableDelayedDragStartListener(
-                          key: ObjectKey(rules[index]),
-                          index: index,
-                          child: _buildRuleItem(rules, index, selectedRules),
-                        ),
-                    proxyDecorator: (child, index, animation) =>
-                        commonProxyDecorator(
-                          _buildRuleItem(rules, index, selectedRules),
-                          index,
-                          animation,
-                        ),
-                    itemExtent: ruleItemHeight,
-                    itemCount: rules.length,
-                    onReorderItem: ref.read(globalRulesProvider.notifier).order,
+          child: ReorderableList(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+            itemBuilder: (context, index) {
+              final rule = rules[index];
+              final position = ItemPosition.get(index, rules.length);
+              return ReorderableDelayedDragStartListener(
+                key: ObjectKey(rule),
+                index: index,
+                child: ItemPositionProvider(
+                  position: position,
+                  child: RuleItem(
+                    hasMatch: true,
+                    isEditing: selectedRules.isNotEmpty,
+                    rule: rule,
+                    isSelected: selectedRules.contains(rule.id),
+                    onSelected: () {
+                      _handleSelected(rule.id);
+                    },
+                    onEdit: (Rule rule) {
+                      _handleAddOrUpdate(rule);
+                    },
                   ),
+                ),
+              );
+            },
+            itemExtent: ruleItemHeight,
+            itemCount: rules.length,
+            onReorderItem: ref.read(globalRulesProvider.notifier).order,
           ),
         ),
-      ),
-    );
-  }
-
-  EdgeInsets _listPadding(BuildContext context) => EdgeInsets.fromLTRB(
-    16,
-    context.contentTopPadding,
-    16,
-    16 + context.bottomInset,
-  );
-
-  Widget _buildRuleItem(List<Rule> rules, int index, Set<dynamic> selected) {
-    final rule = rules[index];
-    return ItemPositionProvider(
-      key: ObjectKey(rule),
-      position: ItemPosition.get(index, rules.length),
-      child: RuleItem(
-        hasMatch: true,
-        isEditing: selected.isNotEmpty,
-        rule: rule,
-        isSelected: selected.contains(rule.id),
-        onSelected: () {
-          _handleSelected(rule.id);
-        },
-        onEdit: (Rule rule) {
-          _handleAddOrUpdate(rule);
-        },
       ),
     );
   }

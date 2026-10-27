@@ -4,7 +4,6 @@ import 'proxy_platform_interface.dart';
 import 'src/linux_proxy.dart';
 import 'src/macos_proxy.dart';
 import 'src/proxy_command.dart';
-import 'src/windows_proxy.dart';
 
 export 'src/proxy_command.dart' show ProxyExecutableChecker, ProxyProcessRunner;
 
@@ -42,10 +41,7 @@ class Proxy {
         desktop: Platform.environment['XDG_CURRENT_DESKTOP'],
         homeDir: Platform.environment['HOME'],
       ),
-      'windows' => await ProxyPlatform.instance.startProxy(
-        port,
-        windowsBypassList(bypassDomain),
-      ),
+      'windows' => await ProxyPlatform.instance.startProxy(port, bypassDomain),
       String() => false,
     };
   }

@@ -9,7 +9,23 @@ class SystemAction extends _$SystemAction {
   @override
   void build() {}
 
+  /// Hands a platform connectivity change to the core so its peer directories
+  /// republish this node's address at once instead of on their next pass.
+  Future<void> injectNetworkChange() async {
+    try {
+      await _core.injectNetworkChange();
+    } catch (error) {
+      commonPrint.log(
+        'Unable to inject the network change: $error',
+        logLevel: LogLevel.warning,
+      );
+    }
+  }
+
   Future<List<Package>> getPackages() async {
+    if (ref.read(isMobileViewProvider)) {
+      await Future.delayed(commonDuration);
+    }
     ref.read(packagesProvider.notifier).value = await app?.getPackages() ?? [];
     return ref.read(packagesProvider);
   }
@@ -51,7 +67,7 @@ class SystemAction extends _$SystemAction {
       ?saveOperation,
       bootGuard.markClosed(),
       if (systemDnsCoordinator != null) systemDnsCoordinator!.shutdown(),
-      ?systemProxyQueue?.close(),
+      if (proxy != null) proxy!.stopProxy(),
     ]);
   }
 
@@ -129,15 +145,6 @@ class SystemAction extends _$SystemAction {
     ref
         .read(networkSettingProvider.notifier)
         .update((state) => state.copyWith(systemProxy: !state.systemProxy));
-  }
-
-  Future<void> copyProxyEnv() async {
-    final port = ref.read(
-      patchClashConfigProvider.select((state) => state.mixedPort),
-    );
-    await Clipboard.setData(
-      ClipboardData(text: proxyEnvCommand(port, isWindows: system.isWindows)),
-    );
   }
 
   void updateAutoLaunch() {

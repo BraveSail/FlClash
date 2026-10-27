@@ -4,9 +4,8 @@ import 'package:fl_clash/l10n/l10n.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/state.dart';
-import 'package:fl_clash/views/config/scripts.dart';
-import 'package:fl_clash/views/profiles/extend/script.dart';
-import 'package:fl_clash/widgets/widgets.dart';
+import 'package:fl_clash/views/profiles/overwrite/script.dart';
+import 'package:fl_clash/widgets/inherited.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,7 +35,7 @@ void main() {
   }) {
     final profile = Profile.normal(label: 'p').copyWith(
       id: _profileId,
-      extendType: ExtendType.script,
+      overwriteType: OverwriteType.script,
       scriptId: selectedScriptId,
     );
     final built = ProviderContainer(
@@ -86,49 +85,16 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('the configure entry opens the scripts in a sheet over it', (
-    tester,
-  ) async {
-    container = buildContainer(scripts: [_script(10, 'alpha')]);
-
-    await pumpScriptContent(tester);
-    await tester.tap(find.text(currentAppLocalizations.goToConfigureScript));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(ScriptsView), findsOneWidget);
-    expect(find.text(currentAppLocalizations.extendScript), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('leaves the gap the standard mode leaves above its entry', (
-    tester,
-  ) async {
-    container = buildContainer(scripts: [_script(10, 'alpha')]);
-
-    await pumpScriptContent(tester);
-
-    final listBottom = tester.getBottomLeft(find.byType(DecorationListItem)).dy;
-    final entryTop = tester
-        .getTopLeft(
-          find.descendant(
-            of: find.byType(MoreActionButton),
-            matching: find.byType(CommonCard),
-          ),
-        )
-        .dy;
-    expect(entryTop - listBottom, 20);
-  });
-
   testWidgets('renders only the header when no script exists', (tester) async {
     container = buildContainer(scripts: const []);
 
     await pumpScriptContent(tester);
 
-    expect(find.text(currentAppLocalizations.extendScript), findsOneWidget);
-    expect(find.byType(DecorationListItem), findsNothing);
+    expect(find.text(currentAppLocalizations.overrideScript), findsOneWidget);
+    expect(find.byType(Radio<int>), findsNothing);
   });
 
-  testWidgets('checks only the profile script', (tester) async {
+  testWidgets('marks the profile script as the selected radio', (tester) async {
     container = buildContainer(
       scripts: [_script(10, 'alpha'), _script(11, 'beta')],
       selectedScriptId: 11,
@@ -136,12 +102,11 @@ void main() {
 
     await pumpScriptContent(tester);
 
-    Finder checkIn(String label) => find.descendant(
-      of: find.widgetWithText(DecorationListItem, label),
-      matching: find.byType(SelectionCheck),
-    );
-    expect(checkIn('beta'), findsOneWidget);
-    expect(checkIn('alpha'), findsNothing);
+    final groups = tester
+        .widgetList<RadioGroup<int>>(find.byType(RadioGroup<int>))
+        .toList();
+    expect(groups, hasLength(1));
+    expect(groups.single.groupValue, 11);
   });
 
   testWidgets('tapping an unselected script selects it', (tester) async {
@@ -167,5 +132,17 @@ void main() {
     await tester.pump();
 
     expect(selectedScriptId(), isNull);
+  });
+
+  testWidgets('tapping the radio selects the same script as the tile', (
+    tester,
+  ) async {
+    container = buildContainer(scripts: [_script(10, 'alpha')]);
+
+    await pumpScriptContent(tester);
+    await tester.tap(find.byType(Radio<int>));
+    await tester.pump();
+
+    expect(selectedScriptId(), 10);
   });
 }

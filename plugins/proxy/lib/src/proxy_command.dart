@@ -18,14 +18,9 @@ class ProxyCommand {
   final String executable;
   final List<String> args;
   final bool runInShell;
-  final bool optional;
 
-  ProxyCommand(
-    this.executable,
-    List<String> args, {
-    this.runInShell = false,
-    this.optional = false,
-  }) : args = List.unmodifiable(args);
+  ProxyCommand(this.executable, List<String> args, {this.runInShell = false})
+    : args = List.unmodifiable(args);
 }
 
 class ProxyCommandRunner {
@@ -43,25 +38,21 @@ class ProxyCommandRunner {
 
   Future<bool> run(Iterable<ProxyCommand> commands) async {
     var executed = false;
-    for (final command in commands) {
-      executed = true;
-      if (!await _succeeds(command) && !command.optional) {
-        return false;
-      }
-    }
-    return executed;
-  }
-
-  Future<bool> _succeeds(ProxyCommand command) async {
     try {
-      final result = await process(
-        command.executable,
-        command.args,
-        runInShell: command.runInShell,
-      );
-      return result.exitCode == 0;
+      for (final command in commands) {
+        executed = true;
+        final result = await process(
+          command.executable,
+          command.args,
+          runInShell: command.runInShell,
+        );
+        if (result.exitCode != 0) {
+          return false;
+        }
+      }
     } on ProcessException {
       return false;
     }
+    return executed;
   }
 }

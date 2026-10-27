@@ -99,4 +99,26 @@ void main() {
 
     expect(_RecordingSetupAction.requests, [true]);
   });
+
+  testWidgets('a tile stop request stops a running core', (tester) async {
+    final listener = await pumpTileManager(tester);
+    markStarted();
+    await tester.pump();
+
+    listener.onStop();
+    await tester.pumpAndSettle();
+
+    expect(_RecordingSetupAction.requests, [false]);
+  });
+
+  testWidgets('a tile stop request is ignored when nothing is running', (
+    tester,
+  ) async {
+    final listener = await pumpTileManager(tester);
+
+    listener.onStop();
+    await tester.pumpAndSettle();
+
+    expect(_RecordingSetupAction.requests, isEmpty);
+  });
 }

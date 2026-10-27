@@ -9,7 +9,6 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'desktop/model.dart';
 import 'interface.dart';
 import 'method.dart';
-import 'spill.dart';
 
 class CoreLib extends CoreHandlerInterface {
   static CoreLib? _instance;
@@ -53,7 +52,6 @@ class CoreLib extends CoreHandlerInterface {
     if (initializationError.isNotEmpty) {
       throw StateError(initializationError);
     }
-    await globalState.container.read(vpnOptionsProvider.future);
     _connectedCompleter.complete(true);
     final syncError =
         await _service?.syncState(
@@ -112,19 +110,18 @@ class CoreLib extends CoreHandlerInterface {
     return _stop(allowClosed: true);
   }
 
-  // The service opens and closes the Core's listeners itself and reports a run
-  // that ends, so once it takes the command the Core's own answer is moot.
   @override
   Future<bool> startListener() async {
-    await super.startListener();
-    return await _service?.start() ?? false;
+    final listenerStarted = await super.startListener();
+    final serviceStarted = await _service?.start() ?? false;
+    return listenerStarted && serviceStarted;
   }
 
   @override
   Future<bool> stopListener() async {
     final serviceStopped = await _service?.stop() ?? false;
-    await super.stopListener();
-    return serviceStopped;
+    final listenerStopped = await super.stopListener();
+    return serviceStopped && listenerStopped;
   }
 
   @override
@@ -133,14 +130,10 @@ class CoreLib extends CoreHandlerInterface {
     Object? arguments,
     Duration? timeout,
   }) {
-    final call = _invokeMethod<T>(method: method, arguments: arguments);
-    return call.withTimeout(
-      timeout: timeout,
-      onTimeout: () {
-        unawaited(call.then(discardSpilledFile, onError: (_) {}));
-        return null;
-      },
-    );
+    return _invokeMethod<T>(
+      method: method,
+      arguments: arguments,
+    ).withTimeout(timeout: timeout, onTimeout: () => null);
   }
 
   Future<T?> _invokeMethod<T>({

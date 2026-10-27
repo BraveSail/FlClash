@@ -35,28 +35,9 @@ NavigationItemsState currentNavigationItemsState(Ref ref) {
   );
 }
 
-PageLabel shownPageLabelOf(
-  PageLabel pageLabel,
-  List<NavigationItem> navigationItems,
-) {
-  if (navigationItems.isEmpty ||
-      navigationItems.any((item) => item.label == pageLabel)) {
-    return pageLabel;
-  }
-  return navigationItems.first.label;
-}
-
-@riverpod
-PageLabel shownPageLabel(Ref ref) {
-  return shownPageLabelOf(
-    ref.watch(currentPageLabelProvider),
-    ref.watch(currentNavigationItemsStateProvider).value,
-  );
-}
-
 @riverpod
 NavigationState navigationState(Ref ref) {
-  final pageLabel = ref.watch(shownPageLabelProvider);
+  final pageLabel = ref.watch(currentPageLabelProvider);
   final navigationItems = ref.watch(currentNavigationItemsStateProvider).value;
   final viewMode = ref.watch(viewModeProvider);
   final locale = ref.watch(appSettingProvider).locale;
@@ -89,9 +70,7 @@ MoreToolsSelectorState moreToolsSelectorState(Ref ref) {
         navigationItemsStateProvider.select((state) {
           return SelectValue(
             state.value.where((element) {
-              final isMore =
-                  element.modes.contains(NavigationItemMode.more) ||
-                  element.modes.contains(NavigationItemMode.moreFull);
+              final isMore = element.modes.contains(NavigationItemMode.more);
               final isDesktop = element.modes.contains(
                 NavigationItemMode.desktop,
               );
@@ -110,6 +89,23 @@ MoreToolsSelectorState moreToolsSelectorState(Ref ref) {
 }
 
 @riverpod
+bool isCurrentPage(
+  Ref ref,
+  PageLabel pageLabel, {
+  bool Function(PageLabel pageLabel, ViewMode viewMode)? handler,
+}) {
+  final currentPageLabel = ref.watch(currentPageLabelProvider);
+  if (pageLabel == currentPageLabel) {
+    return true;
+  }
+  if (handler != null) {
+    final viewMode = ref.watch(viewModeProvider);
+    return handler(currentPageLabel, viewMode);
+  }
+  return false;
+}
+
+@riverpod
 double overlayTopOffset(Ref ref) {
   final isMobileView = ref.watch(isMobileViewProvider);
   final version = ref.watch(versionProvider);
@@ -120,5 +116,5 @@ double overlayTopOffset(Ref ref) {
     version: version,
     isMobileView: isMobileView,
   );
-  return pageToolbarHeight + (showsHeader ? kHeaderHeight : 0);
+  return kToolbarHeight + (showsHeader ? kHeaderHeight : 0);
 }

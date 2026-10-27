@@ -10,8 +10,7 @@ import 'clash_config.dart';
 part 'generated/profile.freezed.dart';
 part 'generated/profile.g.dart';
 
-typedef ValidateConfig =
-    Future<String> Function(String path, String ageSecretKey);
+typedef ValidateConfig = Future<String> Function(String path);
 
 @freezed
 abstract class SubscriptionInfo with _$SubscriptionInfo {
@@ -27,14 +26,11 @@ abstract class SubscriptionInfo with _$SubscriptionInfo {
 
   factory SubscriptionInfo.formHString(String? info) {
     if (info == null) return const SubscriptionInfo();
-    final Map<String, int> map = {};
-    for (final field in info.split(';')) {
-      final separator = field.indexOf('=');
-      if (separator == -1) continue;
-      final value = _parseCount(field.substring(separator + 1).trim());
-      if (value != null) {
-        map[field.substring(0, separator).trim().toLowerCase()] = value;
-      }
+    final list = info.split(';');
+    final Map<String, int?> map = {};
+    for (final i in list) {
+      final keyValue = i.trim().split('=');
+      map[keyValue[0]] = int.tryParse(keyValue[1]);
     }
     return SubscriptionInfo(
       upload: map['upload'] ?? 0,
@@ -43,45 +39,25 @@ abstract class SubscriptionInfo with _$SubscriptionInfo {
       expire: map['expire'] ?? 0,
     );
   }
-
-  static int? _parseCount(String value) {
-    final count = int.tryParse(value);
-    if (count != null) return count;
-    final decimal = double.tryParse(value);
-    return decimal != null && decimal.isFinite ? decimal.truncate() : null;
-  }
-}
-
-extension SubscriptionInfoExt on SubscriptionInfo {
-  double? get usage =>
-      total > 0 ? ((upload + download) / total).clamp(0.0, 1.0) : null;
-
-  DateTime? get expireDate =>
-      expire > 0 ? DateTime.fromMillisecondsSinceEpoch(expire * 1000) : null;
 }
 
 @freezed
 abstract class Profile with _$Profile {
   const factory Profile({
     required int id,
-    @Default(ProfileType.file) ProfileType type,
     @Default('') String label,
     String? currentGroupName,
     @Default('') String url,
-    @Default('') String ageSecretKey,
     DateTime? lastUpdateDate,
     required Duration autoUpdateDuration,
     SubscriptionInfo? subscriptionInfo,
     @Default(true) bool autoUpdate,
     @Default({}) Map<String, String> selectedMap,
     @Default({}) Set<String> unfoldSet,
-    @Default(ExtendType.standard) ExtendType extendType,
+    @Default(OverwriteType.standard) OverwriteType overwriteType,
     int? scriptId,
     String? matchTarget,
     int? order,
-    @Default(ProfileOverrides())
-    @JsonKey(fromJson: ProfileOverrides.safeFromJson)
-    ProfileOverrides overrides,
   }) = _Profile;
 
   factory Profile.fromJson(Map<String, Object?> json) =>
@@ -90,31 +66,52 @@ abstract class Profile with _$Profile {
   factory Profile.normal({String? label, String url = ''}) {
     final id = snowflake.id;
     return Profile(
-      type: url.isEmpty ? ProfileType.file : ProfileType.url,
       label: label ?? '',
       url: url,
       id: id,
       autoUpdateDuration: defaultUpdateDuration,
     );
   }
+}
 
-  factory Profile.custom({String? label}) {
-    return Profile(
-      id: snowflake.id,
-      type: ProfileType.custom,
-      label: label ?? '',
-      lastUpdateDate: DateTime.now(),
-      autoUpdate: false,
-      autoUpdateDuration: defaultUpdateDuration,
-    );
+@freezed
+abstract class ProfileRuleLink with _$ProfileRuleLink {
+  const factory ProfileRuleLink({
+    int? profileId,
+    required int ruleId,
+    RuleScene? scene,
+    String? order,
+  }) = _ProfileRuleLink;
+}
+
+extension ProfileRuleLinkExt on ProfileRuleLink {
+  String get key {
+    final splits = <String?>[
+      profileId?.toString(),
+      ruleId.toString(),
+      scene?.name,
+    ];
+    return splits.where((item) => item != null).join('_');
   }
 }
 
-/// A profile leaving out one of the global rules its extension would add.
 @freezed
-abstract class DisabledRule with _$DisabledRule {
-  const factory DisabledRule({required int profileId, required int ruleId}) =
-      _DisabledRule;
+abstract class StandardOverwrite with _$StandardOverwrite {
+  const factory StandardOverwrite({
+    @Default([]) List<Rule> addedRules,
+    @Default([]) List<int> disabledRuleIds,
+  }) = _StandardOverwrite;
+
+  factory StandardOverwrite.fromJson(Map<String, Object?> json) =>
+      _$StandardOverwriteFromJson(json);
+}
+
+@freezed
+abstract class ScriptOverwrite with _$ScriptOverwrite {
+  const factory ScriptOverwrite({int? scriptId}) = _ScriptOverwrite;
+
+  factory ScriptOverwrite.fromJson(Map<String, Object?> json) =>
+      _$ScriptOverwriteFromJson(json);
 }
 
 extension ProfilesExt on List<Profile> {
@@ -123,46 +120,43 @@ extension ProfilesExt on List<Profile> {
     return index == -1 ? null : this[index];
   }
 
+  String _getLabel(String label, int id) {
+    final realLabel = label.takeFirstValid([id.toString()]);
+    final hasDup =
+        indexWhere(
+          (element) => element.label == realLabel && element.id != id,
+        ) !=
+        -1;
+    if (hasDup) {
+      return _getLabel(getOverwriteLabel(realLabel), id);
+    } else {
+      return realLabel;
+    }
+  }
+
   Profile optimizeLabel(Profile profile) {
-    return profile.copyWith(
-      label: uniqueLabelFor(
-        profile.label,
-        fallback: profile.defaultLabel,
-        taken: (label) =>
-            any((item) => item.label == label && item.id != profile.id),
-      ),
-    );
+    return profile.copyWith(label: _getLabel(profile.label, profile.id));
   }
 }
 
 extension ProfileExtension on Profile {
-  bool get realAutoUpdate => type == ProfileType.url && autoUpdate;
+  ProfileType get type =>
+      url.isEmpty == true ? ProfileType.file : ProfileType.url;
 
-  String get realLabel => label.takeFirstValid([defaultLabel]);
+  bool get realAutoUpdate => url.isEmpty == true ? false : autoUpdate;
 
-  String get defaultLabel => url.webUri?.host ?? id.toString();
+  String get realLabel => label.takeFirstValid([id.toString()]);
 
   String get fileName => '$id.yaml';
-
-  String get exportFileName {
-    final label = realLabel;
-    final lower = label.toLowerCase();
-    if (lower.endsWith('.yaml') || lower.endsWith('.yml')) {
-      return label;
-    }
-    return '$label.yaml';
-  }
 
   String get updatingKey => 'profile_$id';
 
   Future<Profile?> checkAndUpdateAndCopy({
     required ValidateConfig validate,
   }) async {
-    if (type != ProfileType.url) {
-      return null;
-    }
     final mFile = await _getFile(false);
-    if (await mFile.exists()) {
+    final isExists = await mFile.exists();
+    if (isExists || url.isEmpty) {
       return null;
     }
     return update(validate: validate);
@@ -189,13 +183,10 @@ extension ProfileExtension on Profile {
     return copyWith(
       label: label.takeFirstValid([
         getFileNameForDisposition(disposition),
-        defaultLabel,
+        id.toString(),
       ]),
       subscriptionInfo: SubscriptionInfo.formHString(userinfo),
-    ).saveFile(
-      decompressUnlabeled(response.data ?? Uint8List(0)),
-      validate: validate,
-    );
+    ).saveFile(response.data ?? Uint8List.fromList([]), validate: validate);
   }
 
   Future<Profile> saveFile(
@@ -205,7 +196,7 @@ extension ProfileExtension on Profile {
     final path = await appPath.tempFilePath;
     final tempFile = File(path);
     await tempFile.safeWriteAsBytes(bytes);
-    final message = await validate(path, ageSecretKey);
+    final message = await validate(path);
     if (message.isNotEmpty) {
       throw MessageException(message);
     }

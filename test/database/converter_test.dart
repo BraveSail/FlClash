@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:fl_clash/database/database.dart';
-import 'package:fl_clash/models/models.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -56,10 +55,6 @@ void main() {
       final decoded = converter.fromSql(encoded);
       expect(decoded, original);
     });
-
-    test('restores an empty list from damaged JSON', () {
-      expect(converter.fromSql('["a",'), isEmpty);
-    });
   });
 
   group('StringSetConverter', () {
@@ -83,18 +78,6 @@ void main() {
       final decoded = converter.fromSql(encoded);
       expect(decoded.length, 2);
       expect(decoded, containsAll(['a', 'b']));
-    });
-  });
-
-  group('IconSetIconsConverter', () {
-    const converter = IconSetIconsConverter();
-
-    test('roundtrip keeps names, urls and order', () {
-      const original = [
-        IconSetIcon(name: 'b.png', url: 'https://example.com/b.png'),
-        IconSetIcon(name: 'a.png', url: 'https://example.com/a.png'),
-      ];
-      expect(converter.fromSql(converter.toSql(original)), original);
     });
   });
 }

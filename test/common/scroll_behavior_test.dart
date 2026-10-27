@@ -1,5 +1,7 @@
-import 'package:fl_clash/ui/ui.dart';
-import 'package:flutter/gestures.dart';
+import 'dart:ui';
+
+import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/widgets/scroll.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -55,11 +57,11 @@ Future<Widget> _buildScrollbar(
 
 void main() {
   group('BaseScrollBehavior', () {
-    test('scrolls by dragging with a mouse too, as on an Android TV', () {
+    test('enables mouse dragging only on desktop', () {
       final devices = const BaseScrollBehavior().dragDevices;
       expect(devices, contains(PointerDeviceKind.touch));
       expect(devices, contains(PointerDeviceKind.trackpad));
-      expect(devices, contains(PointerDeviceKind.mouse));
+      expect(devices.contains(PointerDeviceKind.mouse), system.isDesktop);
     });
 
     testWidgets('leaves horizontal scrollables unwrapped', (tester) async {
@@ -181,59 +183,62 @@ void main() {
         isA<ClampingScrollSimulation>(),
       );
     });
-
-    test('carries no momentum into the next fling under iOS physics', () {
-      const bouncing = BouncingScrollPhysics();
-      expect(bouncing.carriedMomentum(3000), greaterThan(3000));
-      expect(physics.applyTo(bouncing).carriedMomentum(3000), 0);
-    });
   });
 
-  group('FollowEndScrollPhysics', () {
-    var following = true;
-    final physics = FollowEndScrollPhysics(isFollowing: () => following);
+  group('ReverseScrollController', () {
+    testWidgets('starts scrolled to the bottom of the content', (tester) async {
+      final controller = ReverseScrollController();
+      addTearDown(controller.dispose);
 
-    setUp(() => following = true);
-
-    double adjust({required double oldPixels, double newMax = 160}) {
-      return physics.adjustPositionForNewDimensions(
-        oldPosition: _metrics(pixels: oldPixels),
-        newPosition: _metrics(pixels: oldPixels, maxScrollExtent: newMax),
-        isScrolling: false,
-        velocity: 0,
-      );
-    }
-
-    test('moves a following position at its end to the new end', () {
-      expect(adjust(oldPixels: 100), 160);
-      expect(adjust(oldPixels: 100, newMax: 40), 40);
-    });
-
-    test('counts a position past its end as at the end', () {
-      expect(adjust(oldPixels: double.maxFinite), 160);
-    });
-
-    test('leaves a position off its end where it is', () {
-      expect(adjust(oldPixels: 60), 60);
-    });
-
-    test('leaves a position that stopped following where it is', () {
-      following = false;
-      expect(adjust(oldPixels: 100), 100);
-    });
-
-    test('applyTo keeps following', () {
-      final applied = physics.applyTo(const ClampingScrollPhysics());
-      expect(applied, isA<FollowEndScrollPhysics>());
-      expect(
-        applied.adjustPositionForNewDimensions(
-          oldPosition: _metrics(pixels: 100),
-          newPosition: _metrics(pixels: 100, maxScrollExtent: 160),
-          isScrolling: false,
-          velocity: 0,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              height: 300,
+              child: ListView.builder(
+                controller: controller,
+                itemCount: 50,
+                itemBuilder: (_, index) =>
+                    SizedBox(height: 50, child: Text('item $index')),
+              ),
+            ),
+          ),
         ),
-        160,
       );
+      await tester.pumpAndSettle();
+
+      expect(controller.position, isA<ReverseScrollPosition>());
+      expect(controller.position.pixels, controller.position.maxScrollExtent);
+      expect(controller.position.pixels, greaterThan(0));
+    });
+
+    testWidgets('keeps the user position after the first layout', (
+      tester,
+    ) async {
+      final controller = ReverseScrollController();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              height: 300,
+              child: ListView.builder(
+                controller: controller,
+                itemCount: 50,
+                itemBuilder: (_, index) =>
+                    SizedBox(height: 50, child: Text('item $index')),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      controller.jumpTo(0);
+      await tester.pumpAndSettle();
+
+      expect(controller.position.pixels, 0, reason: 'no second correction');
     });
   });
 }

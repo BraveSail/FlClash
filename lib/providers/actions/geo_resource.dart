@@ -2,8 +2,7 @@ part of '../action.dart';
 
 @Riverpod(keepAlive: true)
 class GeoResourceAction extends _$GeoResourceAction {
-  /// Whether each manual update announces a success; a failure always shows.
-  final _manualUpdates = <GeoResource, bool>{};
+  final _manualUpdates = <GeoResource>{};
   final _operations = <GeoResource, int>{};
 
   CoreController get _core => ref.read(coreHandlerProvider);
@@ -41,15 +40,8 @@ class GeoResourceAction extends _$GeoResourceAction {
   /// Completes once the Core has accepted the update, not once it finishes.
   /// Completion arrives as a geo-update event through [handleCoreUpdate];
   /// callers that need it watch [isUpdatingProvider] for the key to clear.
-  /// A request the Core turns down leaves an update already running as it
-  /// was.
-  Future<void> updateGeoResource(
-    GeoResource geoResource, {
-    bool announceSuccess = true,
-  }) async {
-    final running = _operations.containsKey(geoResource);
-    final previous = _manualUpdates[geoResource];
-    _manualUpdates[geoResource] = announceSuccess;
+  Future<void> updateGeoResource(GeoResource geoResource) async {
+    _manualUpdates.add(geoResource);
     final operation = _startUpdating(geoResource);
     try {
       final message = await _core.updateGeoData(geoResource.name);
@@ -57,14 +49,8 @@ class GeoResourceAction extends _$GeoResourceAction {
         throw MessageException(message);
       }
     } catch (_) {
-      if (previous != null) {
-        _manualUpdates[geoResource] = previous;
-      } else {
-        _manualUpdates.remove(geoResource);
-      }
-      if (!running) {
-        _stopUpdating(geoResource, operation);
-      }
+      _manualUpdates.remove(geoResource);
+      _stopUpdating(geoResource, operation);
       rethrow;
     }
   }
@@ -76,17 +62,17 @@ class GeoResourceAction extends _$GeoResourceAction {
     String? error,
   ) {
     final geoResource = GeoResource.fromJson(geoType.toLowerCase());
-    final announceSuccess = updating
-        ? null
-        : _manualUpdates.remove(geoResource);
-    if (announceSuccess != null && error != null && error.isNotEmpty) {
-      dialogs.showNotifier(error, level: MessageLevel.error);
-    } else if (announceSuccess == true) {
-      final l10n = currentAppLocalizations;
-      final message = skipped
-          ? l10n.geoSkipped(geoResource.name)
-          : l10n.geoUpdated(geoResource.name);
-      dialogs.showNotifier(message);
+    final shouldNotify = !updating && _manualUpdates.remove(geoResource);
+    if (shouldNotify) {
+      if (error == null || error.isEmpty) {
+        final l10n = currentAppLocalizations;
+        final message = skipped
+            ? l10n.geoSkipped(geoResource.name)
+            : l10n.geoUpdated(geoResource.name);
+        dialogs.showNotifier(message);
+      } else {
+        dialogs.showNotifier(error, level: MessageLevel.error);
+      }
     }
     if (updating) {
       _startUpdating(geoResource);
