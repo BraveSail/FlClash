@@ -9,18 +9,34 @@ enum CoreMethod {
   forceGc,
   shutdown,
   validateConfig,
+  decryptConfig,
+  validateProxies,
+  validateFilters,
+  convertProxies,
+  encodeShareLinks,
+  decodeShareLinks,
   updateConfig,
   getConfig,
+  getProfileBase,
+  getProfileOutbounds,
+  getProxyDefinition,
+  buildProfile,
+  dumpRuleSet,
+  compileRuleSet,
   getProxies,
   changeProxy,
   getTraffic,
   getTotalTraffic,
   resetTraffic,
   asyncTestDelay,
+  probe,
+  outboundIp,
+  serviceCheck,
   getConnections,
-  injectNetworkChange,
+  getConnectionCount,
   closeConnections,
   resetConnections,
+  clearDnsCache,
   closeConnection,
   getExternalProviders,
   getExternalProvider,
@@ -31,11 +47,13 @@ enum CoreMethod {
   stopLog,
   startListener,
   stopListener,
-  getMemory,
+  getMemoryStats,
   crash,
   setupConfig,
   clearEffect,
   updateDns,
+  watchRoute,
+  checkRoutes,
 }
 
 class CoreMethodCall {
@@ -91,7 +109,10 @@ class CoreMethodResponse {
   final Object? result;
   final CoreMethodError? error;
 
-  const CoreMethodResponse({this.id, this.result, this.error});
+  /// Where the Core wrote the whole response instead; see `spill.dart`.
+  final String? file;
+
+  const CoreMethodResponse({this.id, this.result, this.error, this.file});
 
   factory CoreMethodResponse.fromJson(Map<String, Object?> json) {
     final error = json['error'];
@@ -101,6 +122,7 @@ class CoreMethodResponse {
       error: error is Map
           ? CoreMethodError.fromJson(Map<String, Object?>.from(error))
           : null,
+      file: json['file'] as String?,
     );
   }
 
@@ -109,6 +131,7 @@ class CoreMethodResponse {
       if (id != null) 'id': id,
       'result': result,
       if (error != null) 'error': error!.toJson(),
+      if (file != null) 'file': file,
     };
   }
 

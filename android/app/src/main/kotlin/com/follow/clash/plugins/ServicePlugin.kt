@@ -19,6 +19,10 @@ class ServicePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     private lateinit var scope: CoroutineScope
     private val gson = Gson()
 
+    // The revision of the last command, echoed back when the service reports
+    // that it stopped.
+    private var revision = 0
+
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         channel = MethodChannel(binding.binaryMessenger, "${Components.PACKAGE_NAME}/service")
@@ -42,8 +46,8 @@ class ServicePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
             "invokeMethod" -> invokeMethod(call, result)
             "getRunTime" -> getRunTime(result)
             "syncState" -> syncState(call, result)
-            "start" -> start(result)
-            "stop" -> stop(result)
+            "start" -> start(call, result)
+            "stop" -> stop(call, result)
             else -> result.notImplemented()
         }
     }
@@ -97,19 +101,33 @@ class ServicePlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
         }
     }
 
-    private fun start(result: MethodChannel.Result) {
+    private fun start(call: MethodCall, result: MethodChannel.Result) {
+        revision = call.arguments as? Int ?: revision
         ServiceState.requestStart()
         result.success(true)
     }
 
-    private fun stop(result: MethodChannel.Result) {
+    private fun stop(call: MethodCall, result: MethodChannel.Result) {
+        revision = call.arguments as? Int ?: revision
+        val stopped = revision
         ServiceState.requestStop()
         result.success(true)
+        // The app stamps each command and ignores a stop report older than the
+        // one it is waiting for, so the revision it just sent is the one to
+        // answer with.
+        scope.launch(Dispatchers.Main) {
+            channel.invokeMethod("stopped", stopped)
+        }
     }
 
     private fun sendEvent(value: String?) {
+        if (value == null) {
+            return
+        }
+        val payload = value.toByteArray(Charsets.UTF_8)
         scope.launch(Dispatchers.Main) {
-            channel.invokeMethod("event", value)
+            // Bytes: the app decodes this as a Uint8List of one encoded call.
+            channel.invokeMethod("event", payload)
         }
     }
 }

@@ -1,0 +1,13 @@
+HTTP/1.1 200 OK
+Date: Sat, 17 Oct 2026 13:02:46 GMT
+Content-Type: text/yaml; charset=utf-8
+Content-Length: 15003
+Connection: keep-alive
+Cache-Control: no-store
+ETag: "1790783217321"
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=4Wy16D%2FxOQCTYsUIsPIyBJ29rAo6u2yxZ0RzdIGdtZRUf6Z5axRX5tnEdFhwy3aWHfaeJoAL6wCKlxocu93uX8MKjoomYTIYmP1SNHSA7l0z%2BDG8JURTcEmwt6gW2g%3D%3D"}]}
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Server: cloudflare
+CF-RAY: a4bf7fe3bbf1d2db-FRA
+alt-svc: h3=":443"; ma=86400
+

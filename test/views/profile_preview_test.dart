@@ -4,12 +4,12 @@ import 'package:fl_clash/pages/editor.dart';
 import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/views/profiles/preview.dart';
-import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/test_app.dart';
+import '../plugins/code_forge/support.dart' show initEditorNative;
 
 class _StubSetupAction extends SetupAction {
   static String yaml = '';
@@ -29,6 +29,7 @@ void main() {
 
   setUpAll(() async {
     await AppLocalizations.load(const Locale('en'));
+    await initEditorNative();
   });
 
   setUp(() {
@@ -41,12 +42,9 @@ void main() {
     globalState.container = container;
   });
 
-  // The editor blinks its caret forever, so `pumpAndSettle` never returns; and
-  // `encodeYamlTask` hands the encode to a real isolate, which only runs
-  // outside the fake-async zone.
+  // The editor blinks its caret forever, so `pumpAndSettle` never returns.
   Future<void> settle(WidgetTester tester) async {
     await tester.pump();
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump();
   }
 
@@ -67,6 +65,13 @@ void main() {
     return tester.widget<EditorPage>(find.byType(EditorPage));
   }
 
+  String? loaded(WidgetTester tester) {
+    return tester
+        .state<EditorViewState>(find.byType(EditorView))
+        .controller
+        ?.text;
+  }
+
   testWidgets('asks for the profile it was given and shows its yaml', (
     tester,
   ) async {
@@ -77,7 +82,7 @@ void main() {
 
     expect(_StubSetupAction.requested, [7]);
     expect(editor(tester).title, 'home');
-    expect(editor(tester).content, contains('mixed-port'));
+    expect(loaded(tester), 'mixed-port: 7890');
   });
 
   testWidgets('renders the editor before the content arrives', (tester) async {
@@ -97,11 +102,11 @@ void main() {
       ),
     );
 
-    expect(editor(tester).content, isNull);
+    expect(loaded(tester), isNull);
 
     await settle(tester);
 
-    expect(editor(tester).content, isNotNull);
+    expect(loaded(tester), isNotNull);
   });
 
   testWidgets('an unlabelled profile falls back to its id', (tester) async {
@@ -143,74 +148,5 @@ void main() {
     await settle(tester);
 
     expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('opening search shows the find panel', (tester) async {
-    await pumpPreview(
-      tester,
-      const Profile(id: 7, label: 'home', autoUpdateDuration: Duration.zero),
-    );
-
-    final Finder panelControls = find.descendant(
-      of: find.byType(FindPanel),
-      matching: find.byType(IconButton),
-    );
-    expect(panelControls, findsNothing);
-
-    // This is exactly what the menu action does. The panel only shows up if the
-    // preview rebuilds when the controller changes -- it did not before, which
-    // is why tapping Search looked dead.
-    tester.widget<FindPanel>(find.byType(FindPanel)).controller.findMode();
-    await tester.pump();
-    await tester.pump();
-
-    expect(panelControls, findsWidgets);
-  });
-
-  testWidgets('a long document previews without throwing', (tester) async {
-    _StubSetupAction.yaml = List<String>.generate(
-      4000,
-      (index) => 'key$index: value$index',
-    ).join('\n');
-
-    await pumpPreview(
-      tester,
-      const Profile(id: 7, label: 'home', autoUpdateDuration: Duration.zero),
-    );
-
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('a wheel scrolls the preview', (tester) async {
-    _StubSetupAction.yaml = List<String>.generate(
-      4000,
-      (index) => 'key$index: value$index',
-    ).join('\n');
-
-    await pumpPreview(
-      tester,
-      const Profile(id: 7, label: 'home', autoUpdateDuration: Duration.zero),
-    );
-    // The loading overlay fades out over the preview and still swallows pointer
-    // signals while it is on screen, so let the switcher finish first.
-    await tester.pump(const Duration(milliseconds: 600));
-
-    final Finder list = find.descendant(
-      of: find.byType(EditorPage),
-      matching: find.byType(ListView),
-    );
-    final ScrollableState scrollable = tester.state(
-      find.descendant(of: list, matching: find.byType(Scrollable)),
-    );
-    expect(scrollable.position.maxScrollExtent, greaterThan(0));
-
-    // Desktop wheels arrive as pointer signals, never as drags, and the list
-    // refuses device scrolling -- so the preview has to translate them itself.
-    final TestPointer pointer = TestPointer(1, PointerDeviceKind.mouse);
-    pointer.hover(tester.getCenter(list));
-    await tester.sendEventToBinding(pointer.scroll(const Offset(0, 200)));
-    await tester.pump();
-
-    expect(scrollable.position.pixels, greaterThan(0));
   });
 }

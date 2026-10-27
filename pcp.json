@@ -1,0 +1,487 @@
+port: 7890
+socks-port: 7891
+redir-port: 7892
+mixed-port: 7893
+cfw-latency-url: http://www.gstatic.com/generate_204
+allow-lan: true
+mode: rule
+log-level: info
+ipv6: true
+external-controller: 0.0.0.0:9090
+
+tun:
+  enable: true
+  stack: system
+  dns-hijack:
+    - any:53
+  auto-route: true
+  auto-detect-interface: true
+
+dns:
+  enable: true
+  use-hosts: true
+  ipv6: true
+  nameserver:
+    - system
+  enhanced-mode: fake-ip
+  fake-ip-range: 7.0.0.0/8
+  fake-ip-range6: 2001::fdfe:dcba:9876:1/112
+  fake-ip-filter:
+    #QQ快捷登录"
+    - "localhost.ptlogin2.qq.com"
+    - "localhost.sec.qq.com"
+  # 这些名字只回 AAAA：对端只有 IPv6，免得 ping 选到 v4 假地址而报不可达
+  fake-ip-aaaa-only:
+    - "pc.lan"
+    - "gt7.lan"
+    - "pc"
+    - "gt7"
+
+sniffer:
+  enable: false
+  force-dns-mapping: true
+  parse-pure-ip: true
+  override-destination: true
+  sniff:
+    HTTP:
+      ports: [80, 8080-8880]
+      override-destination: true
+    TLS:
+      ports: [443, 8443]
+    QUIC:
+      ports: [443, 8443]
+  force-domain:
+    - +.v2ex.com
+  skip-domain:
+    - Mijia Cloud
+
+mesh:
+  # 只写这两行：设备间用什么协议、用什么密钥，内核从 token 派生。
+  # 换 token = 整体换钥（uuid 与 VLESS Encryption 密钥对一起变）。
+  directory-url: https://hub.see.moe
+  directory-token: HmF42IzQ56w-Kv9yJr1yKludF9M8EluTJmppYXvg-lo
+proxies:
+
+  - {
+    "name": "🇰🇷 kr_",
+    "type": "ss",
+    "server": "152.70.253.80",
+    "port": 12342,
+    "cipher": "aes-128-gcm",
+    "password": "ElFYIJuhse2d",
+    "udp": true,
+    "udp-over-tcp": true,
+    "dialer-proxy": jump
+  }
+
+  - name: 🇭🇰 wg_hk
+    type: wireguard
+    ip: 172.16.0.2
+    #ipv6: fd01:5ca1:ab1e:80fa:ab85:6eea:213f:f4a5
+    private-key: 0EH57ANJyP8vp6D2WuxiWmmTu+LU4mzbWFC4sci3D1k=
+    peers:
+      - server: 162.159.192.1
+        port: 2408
+        public-key: bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=
+        allowed-ips: ['0.0.0.0/0']
+    udp: true
+    dialer-proxy: jump
+    remote-dns-resolve: true
+    dns: [1.1.1.1]
+
+  - name: 🇯🇵 tx-akcdn-jp-oracle
+    type: vless
+    server: 106.55.177.19
+    port: 20517
+    uuid: bde75053-972f-4f83-a1d3-048d090de1aa
+    network: tcp
+    udp: true
+    flow: xtls-rprx-vision
+    packet-encoding: xudp
+    encryption: "mlkem768x25519plus.native.0rtt.fBiGRNUPPiUhmeANFXES06R8DQmQ8Our-yfGJNN4DoxA73pCwLCZxVwPNthKhWi4-JcCWPdLKbwbRtd16ETIOiETB9hWS1qiaEpuLalKDlfHBnoETZES7qphiIkhxndoW_vKNXNRmUe3mIYrYWa1XzdrraaoTboB4ApQglC0aTk--_rLdJCYDVuxIyGy1TCWMAS_2lES9GUrdGFj-zlJhMqM0KLDxDuFKqkvHlZDzRQ1qVVS8DJujeNaniimmuVHpNF5ovy67DtSHOZ9f2ViiRgyrmp6D3Grs_OWoKyzufI9lKp8o-IEoSt9X0Zuw8ueyUTME4Ks3EwJHjK8HBlqBwwSvewg1uh5zbuZzpeuvIa2IepNQronBRhkoYcjdmBFiWVnvshBSnVcVWWuMiQWQZuOTlQaCriXPtkahRU1jtuzi0ZswMIhqzSDNnASJNdFZncPCHVGtBEcR5y-YjpjNbFjmLQ5ROh2prwxheMDmMgnj3I3UPZHbclMTwFwQ9wz6hAsZIkizIaDP4Y0d5S22fKUKaZMNQKfHmEVM0NkY-ONk2gDj8IOMlykYGiB9nFIs3O7jrBHVziZSxqK6eRHbjKPrPNQLmUs6JxARvElMAcTwjA3glV-XPaygzaAzYmY1DNzyIAjlmQ_vxLCL4yM6XmitXqY_eu35fUYfZZucmseLYWiiLnLDtA-V1CtiIsXDzISpgCNybXJlESKCOIB1MYTkrpb6Jx2NcsZmVUqaipH2SxVzNMk2ICeoaSQKmkGxIsksFwSB7m4CTlmJAFD3OtAXvJdoSYj2sxZLRUjBRJXVCCsGvVf-NCr27ARSWqnF5fGm0U8C-xd2zuN-oIMlbW8jWmP0iC1vvIkjSc5_tsBEYKzg9bC6rSeNUFjqjOmq9qabfpAGPGglMRQ99w1FUxmI5swalYBaubPisuT9UIFJhg95sNoxSbH66JveLUvGJCP0kJAZ8qnxVllONCXvXAcvPZMGgmO-iYUNagkg0WkqwsNaGBOs0UNwft2aaWhmbAY4Syz0kNDEKgEPVRO6Lq5Yvq6fhotbxPGFLjAuXVGZovFSjbFu6yhhkMgZQMSOXwO5xNNqrQ7gfOo3eRrHwm3Y6FoEUeZjHIWVohAPlaVv2QEDvS7_HF9ZMoWL8Mjjgyp1FJ4MSeWofu387k743iDOtQbb9FDX5BxmoE7KxmdFEy4X7wyBDLDJFq805VIF9CN_3wcyLfLddlChYKlwbRtTPNRi6EBECeFjJMcjHpohiZn3KPBQbIssQCixfFSfBEnjDKCbcqBd_glcisyvly_eTRjpbCb0pR4BTCq6aZS9dRmxLNUrcdZxJRNXTQS43AgWFhm8hW6vjEeQxSj8WK2uAg1zFi7aFEHkgeKVQpkpamtCPLBlUACuXsK6WVq_7sRLjuxoAdkY3RY2AiP_6lLT9kT4jd821GhUwo8Lrc_zpEj5dO1SHYw3nSKmHBWV7x6zIpJKMVvwci-WdXBbtM_ulaDbzQdPGUeR9qI7FFhuGirjfTCJUReWrQmKmqBW6Re_cxloa-PP6cfVcmFRpfjNZGvQZg4pt0cPgMwSY8"
+ 
+  - name: "🇭🇰 tx-akcdn-hk-nube"
+    type: vless
+    server: 106.55.177.19
+    port: 20518
+    uuid: bde75053-972f-4f83-a1d3-048d090de1aa
+    network: tcp
+    udp: true
+    flow: xtls-rprx-vision
+    packet-encoding: xudp
+    encryption: "mlkem768x25519plus.native.0rtt.6bK4xefAlApBUagFUmiE51SjYGstIMqez-INt-cjEjE_-kELKZG5tbR_3XsXSEhqw1wcbjCEh8YKzaKb5tBocqsWHAgU-Ct935gmK9u_K-a4GuVDl3hX-RjM3aBpm3B_3ONYp-iUaYm_8SBVrSRlLGxpbawcN9d8YmieDQaZegTKHHcGguNyDrltvyArUDx_V7oXpId7SMrNO3geAZs6_MocZuGF7RuQiHsNmAsN_khOq0GL0cWSkMUiiDRe0aQHCjbJgKTEP7qWh2Ft3tgtjZIXLNlW5pkACwq_05m-ASNKKndFADc9bhShbWIs32g9j5dGUHc1-vZvWzkzRujDKpU5ryOCogp66OdAQtNP2mIiTowhzGK--TIbwkUuAZxkNYWpz-Mdc_tdqbwcZ4p0omzI56e3w9bHAslhIAyigEcALLEmO-mkgvNSO7suluGl83WHgmK-hHQHtOwqJYC7zAu7f5FXCuJMUEQLhLZZmocCPUtFR6wXeqwz2zIaldO9sbU-gjo5O2s18vhn25FCWuXPA_yqK_R-QCsk1Tuy4xfOw-akj0PAs9pfrcS_AYJXAHc8arFy0dVzyFCqHxQ4IZsxIwOIXtA43kw6WvpJZVBBBPgM-iEXYjLNtqpN8MVTRuFu8zgwJ-ajOnUeEVIp_QOfvmwHpDlgIKzOX_Gk_dhPypKmc3czXDYL6EYy2eclU0GQOhlVI_ZNcxaijJunf9K3tUYQJmke2mdri7uzI0QqowldfpVEZzOrB9m_sLm8O9d2qvpEKwLB7tZsxgSqDHsCLeAnSXyatMKeu9d8guxo_jo8RCQdiSY_c6FWB6KWoNgHW0u-DWaG4jWoE2NZn5I5aEehW8FZafqCdwi_J2eiKyxG4LTHZeOZHkegVhKOt0HLusmScxJ5k4GasYEV9UcBgZapMUSVkOZ2DUVTIGYEbzosuiBcwDNMggiKvrS0FkgtOpJ7l4E1WsRU2vU0HxqopBVI7IF6EaYN7daJSjUAgiFp_vFyVAVbyAp3ozqNknR8BcQbaCeHUQos1gm4a8ETZmPCJEwUE0kCvNVoJ4aNz_Cj1aIqyFlqKyk0OZjI-SN6JUzNgKxzv9UHmkoxl1hwO5UkkOaouciGkeDGPRa2nbiktniqvQd_yxpXNYxKAtioaqrM7eHFfEY4rbidlWuV31UNashP5uqY5Lqwx7s4KiNBH9wW4jOTktVt1JlyDeB8HNk9IkFrtUqrsti78NgKrVowSRIeL4czlHC5CDqz8EQKUMazAKpB1ashFdRai4OPgZigPRJCW3dL46eyfsCbcsmI7oWBGYRq6VTIElU2zOW5eSp0uEF4ngB7sODAxTM-hzge63MQtjuBaoFP6UmLKGdDPgs3-xEAYLU5egMPF4h9GJo5hnaRFKbCpxh3ZFZiSpI1EALDCRsfPGuUVPGhREOeSCcmtucHqIp0buYeS9gZVoeVwnStcacLnsEcwpbPuWBOKuxRRhptQgscwenHflJ3edZy37Be5SC-bnIQQPVfo8myNgYy4IimtOcVgW0Ff83PGtGh9r1tQ_Hw-jbnsFlAtuZoJnctlK0Qh_Y"
+
+  - {
+    "name": "🇭🇰 tx-moe-hk-nube",
+    "type": "ss",
+    "server": "106.55.177.19",
+    "port": 21518,
+    "cipher": "2022-blake3-aes-128-gcm",
+    "password": "5cfDnp/vmEet7aICOyxGLw==",
+    "udp": true,
+    "udp-over-tcp": true,
+    "udp-over-tcp-version": 2,
+    "smux": {
+      "enabled": true, 
+      "protocol": "smux", 
+      "max-connections": 8
+    }
+   }
+
+  - {
+    "name": "🇯🇵 tx-moe-jp-oracle",
+    "type": "ss",
+    "server": "106.55.177.19",
+    "port": 21517,
+    "cipher": "2022-blake3-aes-128-gcm",
+    "password": "5cfDnp/vmEet7aICOyxGLw==",
+    "udp": true,
+    "udp-over-tcp": true,
+    "udp-over-tcp-version": 2,
+    "smux": {
+      "enabled": true, 
+      "protocol": "smux", 
+      "max-connections": 8
+    }
+   }
+
+  - {
+    "name": "🇸🇬 tx-sg-oracle",
+    "type": "ss",
+    "server": "106.55.177.19",
+    "port": 20519,
+    "cipher": "2022-blake3-aes-128-gcm",
+    "password": "5cfDnp/vmEet7aICOyxGLw==",
+    "udp": true,
+    "udp-over-tcp": true,
+    "udp-over-tcp-version": 2,
+    "smux": {
+      "enabled": true, 
+      "protocol": "smux", 
+      "max-connections": 8
+    }
+   }
+  - {
+    "name": "🇯🇵 ali-akcdn-jp-oracle",
+    "type": "ss",
+    "server": "47.107.85.78",
+    "port": 20517,
+    "cipher": "2022-blake3-aes-128-gcm",
+    "password": "5cfDnp/vmEet7aICOyxGLw==",
+    "udp": true,
+    "udp-over-tcp": true,
+    "udp-over-tcp-version": 2,
+    "smux": {
+      "enabled": true, 
+      "protocol": "smux", 
+      "max-connections": 8
+    }
+   }
+
+  - {
+    "name": "🇭🇰 ali-akcdn-hk-nube",
+    "type": "ss",
+    "server": "47.107.85.78",
+    "port": 20518,
+    "cipher": "2022-blake3-aes-128-gcm",
+    "password": "5cfDnp/vmEet7aICOyxGLw==",
+    "udp": true,
+    "udp-over-tcp": true,
+    "udp-over-tcp-version": 2,
+    "smux": {
+      "enabled": true, 
+      "protocol": "smux", 
+      "max-connections": 8
+    }
+   }
+
+  - {
+    "name": "🇭🇰 ali-moe-hk-nube",
+    "type": "ss",
+    "server": "47.107.85.78",
+    "port": 21518,
+    "cipher": "2022-blake3-aes-128-gcm",
+    "password": "5cfDnp/vmEet7aICOyxGLw==",
+    "udp": true,
+    "udp-over-tcp": true,
+    "udp-over-tcp-version": 2,
+    "smux": {
+      "enabled": true, 
+      "protocol": "smux", 
+      "max-connections": 8
+    }
+   }
+
+  - {
+    "name": "🇯🇵 ali-moe-jp-oracle",
+    "type": "ss",
+    "server": "47.107.85.78",
+    "port": 21517,
+    "cipher": "2022-blake3-aes-128-gcm",
+    "password": "5cfDnp/vmEet7aICOyxGLw==",
+    "udp": true,
+    "udp-over-tcp": true,
+    "udp-over-tcp-version": 2,
+    "smux": {
+      "enabled": true, 
+      "protocol": "smux", 
+      "max-connections": 8
+    }
+   }
+
+  - {
+    "name": "🇸🇬 ali-sg-oracle",
+    "type": "ss",
+    "server": "47.107.85.78",
+    "port": 20519,
+    "cipher": "2022-blake3-aes-128-gcm",
+    "password": "5cfDnp/vmEet7aICOyxGLw==",
+    "udp": true,
+    "udp-over-tcp": true,
+    "udp-over-tcp-version": 2,
+    "smux": {
+      "enabled": true, 
+      "protocol": "smux", 
+      "max-connections": 8
+    }
+   }
+
+proxy-providers:
+  flower:
+    type: http
+    path: ./flower.yaml
+    url: https://api-huacloud.dev/sub?target=clash&insert=true&emoji=true&udp=true&clash.doh=true&new_name=true&filename=Flower_Trojan.yaml&url=https%3A%2F%2Fapi.xmancdn.com%2Fosubscribe.php%3Ftoken2%3Dyxrjj96y-06db819badrgzaap7b
+    interval: 3600
+    proxy: DIRECT
+    health-check:
+      enable: false
+      url: http://www.gstatic.com/generate_204
+      interval: 300
+
+  qimo:
+    type: http
+    path: ./qimo.yaml
+    url: https://api.atri.ink/fMhCyZpeDTQhvRJXYIxaeYyTpjiuyfhr/download/nodes
+    interval: 3600
+    health-check:
+      enable: false
+      url: http://www.gstatic.com/generate_204
+      interval: 300
+
+  qimo2:
+    type: http
+    path: ./qimo2.yaml
+    url: https://api.atri.ink/fMhCyZpeDTQhvRJXYIxaeYyTpjiuyfhr/download/nodes-akcdn
+    interval: 3600
+    health-check:
+      enable: false
+      url: http://www.gstatic.com/generate_204
+      interval: 300
+      
+proxy-groups:
+  - name: Proxy
+    type: select
+    use:
+      - flower
+      - qimo
+      - qimo2
+    proxies:
+      - 🇭🇰 tx-akcdn-hk-nube
+      - 🇭🇰 tx-moe-hk-nube
+      - 🇯🇵 tx-akcdn-jp-oracle
+      - 🇯🇵 tx-moe-jp-oracle
+      - 🇸🇬 tx-sg-oracle
+      - 🇭🇰 ali-akcdn-hk-nube
+      - 🇭🇰 ali-moe-hk-nube
+      - 🇯🇵 ali-akcdn-jp-oracle
+      - 🇯🇵 ali-moe-jp-oracle
+      - 🇸🇬 ali-sg-oracle
+      - 🇰🇷 kr_
+      - 🇭🇰 wg_hk
+      - DIRECT
+
+  - name: baha
+    type: select
+    use:
+      - flower
+      - qimo
+      - qimo2
+    proxies:
+      - 🇭🇰 tx-akcdn-hk-nube
+      - 🇭🇰 tx-moe-hk-nube
+      - 🇯🇵 tx-akcdn-jp-oracle
+      - 🇯🇵 tx-moe-jp-oracle
+      - 🇸🇬 tx-sg-oracle
+      - 🇭🇰 ali-akcdn-hk-nube
+      - 🇭🇰 ali-moe-hk-nube
+      - 🇯🇵 ali-akcdn-jp-oracle
+      - 🇯🇵 ali-moe-jp-oracle
+      - 🇸🇬 ali-sg-oracle
+      - 🇰🇷 kr_
+      - 🇭🇰 wg_hk
+      - DIRECT
+
+  - name: b-global
+    type: select
+    use:
+      - flower
+      - qimo
+      - qimo2
+    proxies:
+      - 🇭🇰 tx-akcdn-hk-nube
+      - 🇭🇰 tx-moe-hk-nube
+      - 🇯🇵 tx-akcdn-jp-oracle
+      - 🇯🇵 tx-moe-jp-oracle
+      - 🇸🇬 tx-sg-oracle
+      - 🇭🇰 ali-akcdn-hk-nube
+      - 🇭🇰 ali-moe-hk-nube
+      - 🇯🇵 ali-akcdn-jp-oracle
+      - 🇯🇵 ali-moe-jp-oracle
+      - 🇸🇬 ali-sg-oracle
+      - 🇰🇷 kr_
+      - 🇭🇰 wg_hk
+      - DIRECT
+
+  - name: jp
+    type: select
+    use:
+      - flower
+      - qimo
+      - qimo2
+    proxies:
+      - 🇭🇰 tx-akcdn-hk-nube
+      - 🇭🇰 tx-moe-hk-nube
+      - 🇯🇵 tx-akcdn-jp-oracle
+      - 🇯🇵 tx-moe-jp-oracle
+      - 🇸🇬 tx-sg-oracle
+      - 🇭🇰 ali-akcdn-hk-nube
+      - 🇭🇰 ali-moe-hk-nube
+      - 🇯🇵 ali-akcdn-jp-oracle
+      - 🇯🇵 ali-moe-jp-oracle
+      - 🇸🇬 ali-sg-oracle
+      - 🇰🇷 kr_
+      - 🇭🇰 wg_hk
+      - DIRECT
+
+  - name: netflix
+    type: select
+    use:
+      - flower
+      - qimo
+      - qimo2
+    proxies:
+      - 🇭🇰 tx-akcdn-hk-nube
+      - 🇭🇰 tx-moe-hk-nube
+      - 🇯🇵 tx-akcdn-jp-oracle
+      - 🇯🇵 tx-moe-jp-oracle
+      - 🇸🇬 tx-sg-oracle
+      - 🇭🇰 ali-akcdn-hk-nube
+      - 🇭🇰 ali-moe-hk-nube
+      - 🇯🇵 ali-akcdn-jp-oracle
+      - 🇯🇵 ali-moe-jp-oracle
+      - 🇸🇬 ali-sg-oracle
+      - 🇰🇷 kr_
+      - 🇭🇰 wg_hk
+      - DIRECT
+
+  - name: youtube
+    type: select
+    use:
+      - flower
+      - qimo
+      - qimo2
+    proxies:
+      - 🇭🇰 tx-akcdn-hk-nube
+      - 🇭🇰 tx-moe-hk-nube
+      - 🇯🇵 tx-akcdn-jp-oracle
+      - 🇯🇵 tx-moe-jp-oracle
+      - 🇸🇬 tx-sg-oracle
+      - 🇭🇰 ali-akcdn-hk-nube
+      - 🇭🇰 ali-moe-hk-nube
+      - 🇯🇵 ali-akcdn-jp-oracle
+      - 🇯🇵 ali-moe-jp-oracle
+      - 🇸🇬 ali-sg-oracle
+      - 🇰🇷 kr_
+      - 🇭🇰 wg_hk
+      - DIRECT
+
+  - name: CR-Funi
+    type: select
+    use:
+      - flower
+      - qimo
+      - qimo2
+    proxies:
+      - 🇭🇰 tx-akcdn-hk-nube
+      - 🇭🇰 tx-moe-hk-nube
+      - 🇯🇵 tx-akcdn-jp-oracle
+      - 🇯🇵 tx-moe-jp-oracle
+      - 🇸🇬 tx-sg-oracle
+      - 🇭🇰 ali-akcdn-hk-nube
+      - 🇭🇰 ali-moe-hk-nube
+      - 🇯🇵 ali-akcdn-jp-oracle
+      - 🇯🇵 ali-moe-jp-oracle
+      - 🇸🇬 ali-sg-oracle
+      - 🇰🇷 kr_
+      - 🇭🇰 wg_hk
+      - DIRECT
+
+  - name: jump
+    type: select
+    use:
+      - qimo
+      - qimo2
+      - flower
+    proxies:
+      - 🇭🇰 tx-akcdn-hk-nube
+      - 🇭🇰 tx-moe-hk-nube
+      - 🇯🇵 tx-akcdn-jp-oracle
+      - 🇯🇵 tx-moe-jp-oracle
+      - 🇸🇬 tx-sg-oracle
+      - 🇭🇰 ali-akcdn-hk-nube
+      - 🇭🇰 ali-moe-hk-nube
+      - 🇯🇵 ali-akcdn-jp-oracle
+      - 🇯🇵 ali-moe-jp-oracle
+      - 🇸🇬 ali-sg-oracle
+      - DIRECT
+      
+rules:
+ - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
+ - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
+ - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+ - IP-CIDR,100.64.0.0/10,DIRECT,no-resolve
+ - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
+ - IP-CIDR,169.254.0.0/16,DIRECT,no-resolve
+ - IP-CIDR6,::1/128,DIRECT,no-resolve
+ - IP-CIDR6,fc00::/7,DIRECT,no-resolve
+ - IP-CIDR6,fe80::/10,DIRECT,no-resolve
+ - DOMAIN,sub.see.moe,DIRECT
+ - DOMAIN,invite.linuxdo.org,DIRECT
+ - DOMAIN-SUFFIX,linkedin.com,Proxy
+ - DOMAIN-SUFFIX,bing.com,Proxy
+ - GEOSITE,bahamut,baha
+# - PROCESS-NAME,xyz.nextalone.nagram,tg
+ - PROCESS-NAME,com.bstar.intl,b-global
+ - PROCESS-NAME,com.android.vending,Proxy
+# - PROCESS-NAME,com.YostarJP.BlueArchive,jp
+ - PROCESS-NAME,com.miHoYo.GenshinImpact,jp
+ - PROCESS-NAME,com.HoYoverse.hkrpgoversea,jp
+ - PROCESS-NAME,com.bandainamcoent.idolmaster_gakuen,jp
+ - GEOSITE,biliintl,b-global
+ - GEOSITE,openai,jp
+ - PROCESS-NAME,com.openai.chatgpt,jp
+ - GEOSITE,anthropic,jp
+ - GEOSITE,dmm,jp
+ - GEOSITE,niconico,jp
+ - GEOSITE,abema,jp
+ - GEOSITE,netflix,netflix
+ - GEOSITE,youtube,youtube
+ - DOMAIN-SUFFIX,prod.gccrunchyroll.com,Proxy
+ - DOMAIN-KEYWORD,crunchyroll,CR-Funi
+ - DOMAIN-KEYWORD,funimation,CR-Funi
+ - DOMAIN-KEYWORD,hidive,CR-Funi
+ - DOMAIN-SUFFIX,imggaming.com,CR-Funi
+ - DOMAIN-KEYWORD,sentai,CR-Funi
+ - GEOSITE,gfw,Proxy
+ - GEOIP,CN,DIRECT
+ - MATCH,Proxy
