@@ -1,19 +1,23 @@
 package core
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"net/http"
+	"os"
+	"strings"
 	"sync"
+	"time"
 
 	meshident "github.com/metacubex/mihomo/component/mesh"
 	"github.com/metacubex/mihomo/component/hubprofile"
+	"github.com/metacubex/mihomo/common/yaml"
 	"github.com/metacubex/mihomo/config"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/hub"
 	"github.com/metacubex/mihomo/hub/executor"
 	"github.com/metacubex/mihomo/log"
-	"github.com/metacubex/mihomo/common/yaml"
-
-	"os"
 )
 
 var (
@@ -55,6 +59,13 @@ func startMeshHub() {
 		return
 	}
 
+	// First contact is a registration, not a pull: the hub only hands a
+	// profile to a device whose key it knows, and it only knows a key that was
+	// offered. A device that has never been seen registers itself and waits to
+	// be let in; the next attempt - the poll, a minute later - is signed and
+	// succeeds.
+	registerDeviceKey(*block)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	client, err := hubprofile.New(*block, applyPushedProfile)
 	if err != nil {
@@ -94,6 +105,49 @@ func applyPushedProfile(pulled []byte) error {
 	bumpRouteEpoch()
 	configMu.Unlock()
 	return nil
+}
+
+// registerDeviceKey offers this device's public key to the hub.
+//
+// It is idempotent and silent: a device already known answers the same way as
+// one that just arrived, and the answer is deliberately empty - a device learns
+// it was let in by its next request succeeding, not by a message here.
+func registerDeviceKey(block hubprofile.Config) {
+	identity := meshident.Derive()
+	if identity.ID == "" {
+		return
+	}
+	keys, err := meshident.LoadOrCreateKeys("")
+	if err != nil {
+		log.Debugln("[Profile] cannot read this device's key: %v", err)
+		return
+	}
+	payload, err := json.Marshal(map[string]string{
+		"id":        identity.ID,
+		"publicKey": meshident.PublicKeyBase64(keys.Signing),
+		"name":      identity.Name,
+		"os":        identity.OS,
+	})
+	if err != nil {
+		return
+	}
+	url := strings.TrimSuffix(block.URL, "/") + "/register"
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return
+	}
+	request.Header.Set("content-type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		log.Debugln("[Profile] could not register this device: %v", err)
+		return
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode/100 != 2 {
+		log.Debugln("[Profile] the hub answered %d to this device's registration", response.StatusCode)
+	}
 }
 
 // meshHubBlock answers which hub this device belongs to: the one its
