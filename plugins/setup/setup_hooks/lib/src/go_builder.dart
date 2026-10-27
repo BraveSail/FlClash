@@ -4,9 +4,7 @@ import 'dart:io';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 
-import 'build.dart';
 import 'build_cache.dart';
-import 'error.dart';
 import 'fingerprint.dart';
 import 'options.dart';
 import 'target.dart';
@@ -21,7 +19,6 @@ class GoBuilder {
     required this.cache,
     required this.notice,
     this.harnessInputs = const [],
-    this.androidToolchain,
   });
 
   final String rootDir;
@@ -29,35 +26,17 @@ class GoBuilder {
   final BuildCache cache;
   final BuildNotice notice;
   final List<String> harnessInputs;
-  final AndroidToolchain? androidToolchain;
+
+  static const _mainPackage = './cmd/core';
 
   String get _corePath => p.join(rootDir, config.coreDir);
   String get _outputPath => p.join(rootDir, config.outputDir);
 
-  String _resolveCc(Target target) {
-    final toolchain = androidToolchain;
-    if (toolchain == null) {
-      throw BuildException('Android target $target needs an NDK toolchain');
-    }
-    final cc = toolchain.clangFor(target);
-    if (!File(cc).existsSync()) {
-      throw BuildException(
-        'NDK compiler not found: $cc (API ${toolchain.apiLevel} from the '
-        'app minSdk; the NDK Flutter selected may be too old)',
-      );
-    }
-    return cc;
-  }
-
   Future<BuildExecution> build(Target target) async {
-    final outDir = target.isLib
-        ? p.join(_outputPath, target.platformDir, target.abi!)
-        : p.join(_outputPath, target.platformDir);
+    final outDir = p.join(_outputPath, target.platformDir);
     ensureDir(outDir);
 
-    final fileName = target.isLib
-        ? '${config.libName}.so'
-        : '${config.coreName}${target.executableExtension}';
+    final fileName = '${config.coreName}${target.executableExtension}';
     final outFile = p.join(outDir, fileName);
 
     return cache.run(
@@ -67,10 +46,7 @@ class GoBuilder {
       notice: notice,
       build: () async {
         final env = _buildEnvironment(target);
-        _log.info(
-          'Building Go core: $target '
-          '${target.isLib ? "(CGO, c-shared)" : "(standalone)"}',
-        );
+        _log.info('Building Go core: $target');
 
         // A failed build must not destroy the previous artifacts.
         final stagingDir = Directory(
@@ -84,24 +60,10 @@ class GoBuilder {
             workingDirectory: _corePath,
             environment: env,
           );
-
-          final outputs = <String>[outFile];
-          if (target.isLib) {
-            outputs.addAll(
-              _installAndroidOutput(
-                abi: target.abi!,
-                platformDir: p.join(_outputPath, target.platformDir),
-                stagingDir: stagingDir.path,
-                libName: fileName,
-                outFile: outFile,
-              ),
-            );
-          } else {
-            replaceFile(staged, outFile);
-          }
+          replaceFile(staged, outFile);
 
           _log.info('Built: $outFile');
-          return outputs;
+          return [outFile];
         } finally {
           if (stagingDir.existsSync()) {
             stagingDir.deleteSync(recursive: true);
@@ -111,134 +73,39 @@ class GoBuilder {
     );
   }
 
-  Map<String, String> _buildEnvironment(Target target) {
-    final env = <String, String>{'GOOS': target.goos, 'GOARCH': target.goarch};
-    if (target.isLib) {
-      env
-        ..['CGO_ENABLED'] = '1'
-        ..['CC'] = _resolveCc(target)
-        ..['CFLAGS'] = '-O3 -Werror';
-    } else {
-      env['CGO_ENABLED'] = '0';
-    }
-    return env;
-  }
+  Map<String, String> _buildEnvironment(Target target) => {
+    'GOOS': target.goos,
+    'GOARCH': target.goarch,
+    'CGO_ENABLED': '0',
+  };
 
-  /// The revision of the kernel that is about to be built.
-  ///
-  /// The app shows it next to its own version so a device running a different
-  /// build is visible from its own about page: nodes on mismatched cores fail
-  /// each other's handshakes and report nothing that points at why.
-  ///
-  /// `coreDir` holds the build (module `core`) while the kernel's sources are
-  /// the `Clash.Meta` submodule inside it, and the two are separate
-  /// repositories. The revision has to come from the submodule: asking from
-  /// `coreDir` reports the app repository instead, which is a different tree
-  /// with a different history, and its dirt - an untracked build artifact, a
-  /// doc file - marks a perfectly clean kernel `-dirty`.
-  static String _readRevision(String corePath) {
-    final repo = _kernelRepoPath(corePath);
-    try {
-      final r = runCommand('git', [
-        'rev-parse',
-        '--short=12',
-        'HEAD',
-      ], workingDirectory: repo);
-      if (r.exitCode != 0) return '';
-      final rev = (r.stdout as String).trim();
-      if (rev.isEmpty) return '';
-      final s = runCommand('git', [
-        'status',
-        '--porcelain',
-      ], workingDirectory: repo);
-      if (s.exitCode != 0) return rev;
-      // Tracked edits only: an untracked file does not change what was built,
-      // and a released build must not read as modified because of a scratch
-      // file someone left in the tree.
-      final dirty = (s.stdout as String)
-          .split('\n')
-          .map((line) => line.trim())
-          .any((line) => line.isNotEmpty && !line.startsWith('??'));
-      return '$rev${dirty ? '-dirty' : ''}';
-    } catch (_) {
-      return '';
-    }
-  }
+  // Package-level vars in mihomo copy constant.Version during init, so only the
+  // linker can set it for every reader.
+  static const _versionSymbol = 'github.com/metacubex/mihomo/constant.Version';
 
-  /// The directory that actually holds the kernel's git repository.
-  ///
-  /// The submodule when it is checked out, and the build directory otherwise -
-  /// a tree without the submodule still builds the module that is there, and
-  /// reporting no revision is better than reporting the app's.
-  static String _kernelRepoPath(String corePath) {
-    final submodule = p.join(corePath, 'Clash.Meta');
-    if (Directory(p.join(submodule, '.git')).existsSync() ||
-        File(p.join(submodule, '.git')).existsSync()) {
-      return submodule;
-    }
-    return corePath;
-  }
+  String _ldflags() => [
+    config.goLdflags,
+    if (config.coreVersion.isNotEmpty)
+      '-X $_versionSymbol=${config.coreVersion}',
+  ].join(' ');
 
   List<String> _buildArguments(Target target, {String? outFile}) => [
     'build',
-    '-ldflags=${config.goLdflags}${_versionLdflags()}',
+    '-ldflags=${_ldflags()}',
     '-tags=${config.tags}',
-    if (target.isLib) '-buildmode=c-shared',
     if (outFile != null) ...['-o', outFile],
+    _mainPackage,
   ];
-
-  /// The arguments as they enter the cache fingerprint: identical to the real
-  /// ones except that the build time is left out.
-  ///
-  /// The build time is stamped into every core, so including it would make the
-  /// fingerprint differ from run to run and rebuild an unchanged core - the
-  /// cache would never hit. The revision is in here, so a core whose checkout
-  /// moved does rebuild.
-  List<String> _fingerprintArguments(Target target) => [
-    'build',
-    '-ldflags=${config.goLdflags}${_stampLdflag()}',
-    '-tags=${config.tags}',
-    if (target.isLib) '-buildmode=c-shared',
-  ];
-
-  String _stampLdflag() {
-    final stamp = _readRevision(_corePath);
-    return stamp.isEmpty
-        ? ''
-        : " -X 'github.com/metacubex/mihomo/constant.Revision=$stamp'";
-  }
-
-  /// Stamp the revision and the build time into the core.
-  ///
-  /// The revision is read from the core checkout rather than passed in, so a
-  /// local build carries the same information as a released one and neither
-  /// depends on the caller remembering. Only the revision goes into the cache
-  /// fingerprint; the build time is not a cache input, because the wall clock
-  /// moves between builds and would rebuild a core that has not changed.
-  String _versionLdflags() {
-    final stamp = _readRevision(_corePath);
-    final builtAt = DateTime.now().toUtc().toIso8601String();
-    return [
-      if (stamp.isNotEmpty)
-        " -X 'github.com/metacubex/mihomo/constant.Revision=$stamp'",
-      " -X 'github.com/metacubex/mihomo/constant.BuildTime=$builtAt'",
-    ].join();
-  }
 
   Future<Fingerprint> _calculateFingerprint(Target target) async {
     final env = _buildEnvironment(target);
     final builder = FingerprintBuilder(rootDir: rootDir)
       ..addValue('cache_schema', BuildCache.schemaVersion)
       ..addValue('kind', 'go-core')
-      ..addValue('target', {
-        'goos': target.goos,
-        'goarch': target.goarch,
-        'abi': target.abi,
-      })
+      ..addValue('target', {'goos': target.goos, 'goarch': target.goarch})
       ..addValue('config', config.toFingerprintMap())
       ..addValue('environment', env)
-      ..addValue('core_revision', _readRevision(_corePath))
-      ..addValue('arguments', _fingerprintArguments(target));
+      ..addValue('arguments', _buildArguments(target));
 
     final goEnvResult = runCommand(
       'go',
@@ -276,15 +143,6 @@ class GoBuilder {
     }
     inputs.addAll(harnessInputs);
 
-    if (target.isLib) {
-      final compilerVersion = runCommand(env['CC']!, ['--version']);
-      builder.addValue(
-        'android_compiler',
-        '${(compilerVersion.stdout as String).trim()}\n'
-            '${(compilerVersion.stderr as String).trim()}',
-      );
-    }
-
     builder.addFiles(inputs);
     return builder.finishWithInputs();
   }
@@ -294,7 +152,7 @@ class GoBuilder {
         r'''{{range .GoFiles}}{{$.Dir}}/{{.}}{{"\n"}}{{end}}{{range .CgoFiles}}{{$.Dir}}/{{.}}{{"\n"}}{{end}}{{range .CFiles}}{{$.Dir}}/{{.}}{{"\n"}}{{end}}{{range .CXXFiles}}{{$.Dir}}/{{.}}{{"\n"}}{{end}}{{range .MFiles}}{{$.Dir}}/{{.}}{{"\n"}}{{end}}{{range .HFiles}}{{$.Dir}}/{{.}}{{"\n"}}{{end}}{{range .FFiles}}{{$.Dir}}/{{.}}{{"\n"}}{{end}}{{range .SFiles}}{{$.Dir}}/{{.}}{{"\n"}}{{end}}{{range .SwigFiles}}{{$.Dir}}/{{.}}{{"\n"}}{{end}}{{range .SwigCXXFiles}}{{$.Dir}}/{{.}}{{"\n"}}{{end}}{{range .SysoFiles}}{{$.Dir}}/{{.}}{{"\n"}}{{end}}{{range .EmbedFiles}}{{$.Dir}}/{{.}}{{"\n"}}{{end}}{{with .Module}}{{if .GoMod}}{{.GoMod}}{{"\n"}}{{end}}{{end}}''';
     final result = runCommand(
       'go',
-      ['list', '-deps', '-tags=${config.tags}', '-f', template, '.'],
+      ['list', '-deps', '-tags=${config.tags}', '-f', template, _mainPackage],
       workingDirectory: _corePath,
       environment: environment,
     );
@@ -322,62 +180,5 @@ class GoBuilder {
       if (File(filePath).existsSync()) inputs.add(filePath);
     }
     return inputs;
-  }
-
-  List<String> _installAndroidOutput({
-    required String abi,
-    required String platformDir,
-    required String stagingDir,
-    required String libName,
-    required String outFile,
-  }) {
-    final includesPath = p.join(platformDir, 'includes', abi);
-    final androidCoreMainPath = p.join(
-      rootDir,
-      'android',
-      'core',
-      'src',
-      'main',
-    );
-    final jniLibsPath = p.join(androidCoreMainPath, 'jniLibs', abi);
-    final cppIncludesPath = p.join(androidCoreMainPath, 'cpp', 'includes', abi);
-    final outputs = <String>[];
-
-    ensureDir(includesPath);
-    _clearDirectory(includesPath);
-    ensureDir(cppIncludesPath);
-    _clearDirectory(cppIncludesPath);
-
-    replaceFile(p.join(stagingDir, libName), outFile);
-    copyFile(outFile, p.join(jniLibsPath, libName));
-    outputs.add(p.join(jniLibsPath, libName));
-
-    final generatedHeaders = Directory(stagingDir).listSync();
-    final staticHeaders = Directory(_corePath).listSync();
-    for (final file in [...generatedHeaders, ...staticHeaders]) {
-      if (!file.path.endsWith('.h')) continue;
-      final headerName = p.basename(file.path);
-      final includePath = p.join(includesPath, headerName);
-      final cppIncludePath = p.join(cppIncludesPath, headerName);
-      copyFile(file.path, includePath);
-      copyFile(file.path, cppIncludePath);
-      outputs
-        ..add(includePath)
-        ..add(cppIncludePath);
-    }
-    return outputs;
-  }
-
-  void _clearDirectory(String dirPath) {
-    final dir = Directory(dirPath);
-    if (!dir.existsSync()) return;
-
-    for (final entity in dir.listSync()) {
-      if (entity is File || entity is Link) {
-        entity.deleteSync();
-      } else if (entity is Directory) {
-        entity.deleteSync(recursive: true);
-      }
-    }
   }
 }
