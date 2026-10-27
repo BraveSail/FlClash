@@ -85,7 +85,7 @@ class BatteryPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventChann
         val filter = IntentFilter().apply {
             addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                addAction(PowerManager.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                addAction(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
             }
         }
         receiver = object : BroadcastReceiver() {
