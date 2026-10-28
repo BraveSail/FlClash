@@ -185,3 +185,58 @@ jobs:
           path: ./dist
           if-no-files-found: error
           overwrite: true
+
+  ont:
+    name: ONT core linux armv5
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: |
+            core/go.sum
+
+      - name: Name the hub in the core
+        env:
+          HUB_URL: ${{ vars.HUB_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HUB_URL:-}" ]; then
+            echo "HUB_URL is unset; the core would not name a hub" >&2
+            exit 1
+          fi
+          echo "hub: ${HUB_URL}"
+
+      # The ONT runs a standalone core, not the app's IPC wrapper: it has no
+      # Flutter, no helper and no TUN. easytier's overlay is the one part that
+      # cannot cross to a 32-bit ARMv5 userland, so the build leaves it out.
+      - name: Build ONT core
+        env:
+          HUB_URL: ${{ vars.HUB_URL }}
+        run: |
+          set -euo pipefail
+          cd core/Clash.Meta
+          mkdir -p ../../dist
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=5 \
+            go build -tags "no_easytier" -trimpath \
+            -ldflags "-w -s -X 'github.com/metacubex/mihomo/constant.HubURL=${HUB_URL}'" \
+            -o ../../dist/mihomo-ont-armv5 .
+          cd ../../dist
+          sha256sum mihomo-ont-armv5 > mihomo-ont-armv5.sha256
+          ls -l mihomo-ont-armv5
+          file mihomo-ont-armv5 || true
+          grep -c "${HUB_URL}" mihomo-ont-armv5 || echo "hub string not found"
+
+      - name: Upload ONT core
+        uses: actions/upload-artifact@v4
+        with:
+          name: mihomo-ont-armv5-${{ github.sha }}
+          path: ./dist/mihomo-ont-armv5*
+          if-no-files-found: error
+          overwrite: true
