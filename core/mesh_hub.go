@@ -6,53 +6,47 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/metacubex/mihomo/common/yaml"
 	meshident "github.com/metacubex/mihomo/component/mesh"
 	"github.com/metacubex/mihomo/component/hubprofile"
-	"github.com/metacubex/mihomo/common/yaml"
 	"github.com/metacubex/mihomo/config"
 	C "github.com/metacubex/mihomo/constant"
-	"github.com/metacubex/mihomo/hub"
-	"github.com/metacubex/mihomo/hub/executor"
 	"github.com/metacubex/mihomo/log"
 )
 
 var (
-	meshHubMu     sync.Mutex
-	meshHubCancel context.CancelFunc
-	// meshHubKey identifies the channel that is running, so a configuration
-	// change that leaves the hub alone does not restart it.
-	meshHubKey string
+	meshHubMu sync.Mutex
+	// meshHubOfferedKey identifies the hub this core has already offered its key
+	// to, so a configuration change that leaves the hub alone does not register
+	// the device again.
+	meshHubOfferedKey string
 )
 
-// startMeshHub keeps this device's configuration in step with the hub that owns
-// it, when the configuration that was just applied asks for one - or when the
-// build itself names a hub and the configuration says nothing.
+// startMeshHub offers this device's key to the hub its configuration names.
 //
-// Called from every configuration apply, so it is idempotent: the same hub
-// leaves the running channel alone, and a changed one replaces it.
+// That is all the hub is for. It used to hand out a whole configuration, which
+// the core then applied over the one the app had just given it: ports moved,
+// groups were rebuilt, selections were cleared, and the apply that answers the
+// app's setup waited on it - all a few seconds after every start. The profile
+// the app applies is the profile this core runs; the hub only needs to know this
+// device so its peers accept it.
 func startMeshHub() {
 	block := meshHubBlock()
 	if block == nil || !block.Enabled() {
-		stopMeshHub()
 		return
 	}
-	key := block.URL + "\x00" + block.ID + "\x00" + block.Token
+	key := block.URL + "\x00" + block.ID
 
 	meshHubMu.Lock()
-	if key == meshHubKey {
+	if key == meshHubOfferedKey {
 		meshHubMu.Unlock()
 		return
 	}
-	if meshHubCancel != nil {
-		meshHubCancel()
-		meshHubCancel = nil
-	}
-	meshHubKey = key
+	meshHubOfferedKey = key
 	meshHubMu.Unlock()
 
 	if err := block.Validate(); err != nil {
@@ -60,124 +54,16 @@ func startMeshHub() {
 		return
 	}
 
-	// First contact is a registration, not a pull: the hub only hands a
-	// profile to a device whose key it knows, and it only knows a key that was
-	// offered. A device that has never been seen registers itself and waits to
-	// be let in; the next attempt - the poll, a minute later - is signed and
-	// succeeds.
-	//
-	// None of this may run on the caller's goroutine: this is called from the
-	// apply that answers the app's setup, and that answer must not wait on a
-	// hub - the tunnel and DNS were just rebuilt, so a registration issued here
-	// can sit on a route that is not carrying yet, and the app times out on a
-	// core that finished its work.
-	go func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		registerDeviceKey(*block)
-
-		client, err := hubprofile.New(*block, applyPushedProfile)
-		if err != nil {
-			log.Warnln("[Profile] %s", err.Error())
-			cancel()
-			return
-		}
-		meshHubMu.Lock()
-		meshHubCancel = cancel
-		meshHubMu.Unlock()
-		log.Infoln("[Profile] this device takes its configuration from %s as %q", block.URL, block.ID)
-		client.Start(ctx)
-		publishLoop(ctx, *block)
-	}()
-}
-
-// publishLoop keeps the app's own profile file equal to the configuration this
-// device runs.
-//
-// The pull only calls back when the hub's answer changes, and an unchanged
-// answer is a 304 with no callback at all - so a device that started before the
-// app wrote its profile would never bring the two together. Watching the file
-// the pull keeps is what makes the app's view follow the core's, whatever the
-// hub happens to answer.
-func publishLoop(ctx context.Context, block hubprofile.Config) {
-	id := strings.TrimSpace(block.ID)
-	if id == "" {
-		return
-	}
-	path := block.File
-	if strings.TrimSpace(path) == "" {
-		path = filepath.Join(C.Path.HomeDir(), "profile-"+id+".yaml")
-	}
-	publish := func() {
-		pulled, err := os.ReadFile(path)
-		if err != nil || len(pulled) == 0 {
-			return
-		}
-		publishToAppProfile(pulled)
-	}
-	publish()
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			publish()
-		}
-	}
+	// Never on the caller's goroutine: this runs from the apply that answers the
+	// app's setup, and that answer must not wait on a hub whose route was rebuilt
+	// milliseconds ago.
+	go registerDeviceKey(*block)
 }
 
 func stopMeshHub() {
 	meshHubMu.Lock()
 	defer meshHubMu.Unlock()
-	if meshHubCancel != nil {
-		meshHubCancel()
-		meshHubCancel = nil
-	}
-	meshHubKey = ""
-}
-
-// applyPushedProfile installs a whole configuration the hub pushed, through the
-// same executor the app's own updates use.
-func applyPushedProfile(pulled []byte) error {
-	parsed, err := executor.ParseWithBytes(pulled)
-	if err != nil {
-		return err
-	}
-	configMu.Lock()
-	// A pushed profile is a profile: proxies, groups, providers, rules. Its
-	// ports, TUN, DNS and controller are the publishing device's, not this
-	// host's - applying them rebinds mixed 7890 to the hub's own numbering and a
-	// device that was proxying fine minutes earlier answers nothing on the port
-	// its app was told to use.
-	merged := withPlatformLimits(parsed)
-	if currentConfig != nil {
-		merged.General = currentConfig.General
-		merged.DNS = currentConfig.DNS
-		merged.Controller = currentConfig.Controller
-		merged.Experimental = currentConfig.Experimental
-		merged.NTP = currentConfig.NTP
-		merged.Profile = currentConfig.Profile
-		merged.Sniffer = currentConfig.Sniffer
-		merged.Listeners = currentConfig.Listeners
-	}
-	currentConfig = merged
-	hub.ApplyConfig(currentConfig)
-	if merged.General != nil {
-		noteCoreEvent("pushed profile applied; host ports kept (mixed %d)", merged.General.MixedPort)
-	}
-	// The pushed configuration's groups start at their first member; the picks
-	// the device already made are not part of it and would be lost here.
-	restoreSelection()
-	updateListeners(currentConfig)
-	bumpRouteEpoch()
-	configMu.Unlock()
-	// The app reads a profile from its own file, not from the core: its proxy
-	// list, its groups and its rules all come from there. A core that keeps the
-	// pulled profile to itself leaves the app showing whatever it was installed
-	// with, which is how a device ends up "connected" with an empty proxy page.
-	publishToAppProfile(pulled)
-	return nil
+	meshHubOfferedKey = ""
 }
 
 // registerDeviceKey offers this device's public key to the hub.
