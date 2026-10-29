@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/metacubex/mihomo/adapter"
 	"github.com/metacubex/mihomo/adapter/inbound"
@@ -153,6 +154,11 @@ func applyConfig(params *SetupParams) error {
 	configMu.Lock()
 	defer configMu.Unlock()
 
+	started := time.Now()
+	defer func() {
+		noteCoreEvent("setup took %s", time.Since(started))
+	}()
+
 	setTestURL(params.TestURL)
 	skipCertVerify.Store(params.SkipCertVerify)
 	cfg, err := loadSetupConfig(params)
@@ -174,10 +180,14 @@ func applyConfig(params *SetupParams) error {
 	}
 
 	currentConfig = cfg
+	loaded := time.Now()
 	hub.ApplyConfig(cfg)
+	applied := time.Now()
 	patchSelectGroup(params.SelectedMap)
 	bumpRouteEpoch()
 	updateListeners(cfg)
+	noteCoreEvent("setup stages: load %s, apply %s, listen %s",
+		loaded.Sub(started), applied.Sub(loaded), time.Since(applied))
 	reconcileGeoUpdater()
 	scheduleLoadMemoryRelease()
 	// A device that names a hub - in its configuration or in the build it
