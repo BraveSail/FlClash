@@ -60,39 +60,20 @@ func publishToAppProfile(pulled []byte) {
 
 // appDataDir answers where the app keeps its preferences and its profile files.
 //
-// The two layouts differ: the desktop app holds profiles directly under its
-// support directory, while the android app holds them under the files directory
-// the platform hands it.
+// Only the directory the app handed to the core is an answer. A core that was
+// handed nothing has no business guessing: on this platform a guess lands on the
+// real %APPDATA%\com.follow\clash, and a test - or a standalone core pointed at a
+// scratch directory - then rewrites the profile of the app the user is using.
 func appDataDir() (dir string, profiles string, ok bool) {
-	// The core is handed the app's data directory, and under the helper it runs
-	// as a service account whose own profile directory is somewhere else
-	// entirely. That hand-off is the only reliable answer, so it comes first.
-	if home := strings.TrimSpace(C.Path.HomeDir()); home != "" {
-		profiles := filepath.Join(home, "profiles")
-		if info, err := os.Stat(profiles); err == nil && info.IsDir() {
-			return home, profiles, true
-		}
-	}
-	if runtime.GOOS == "android" {
-		// The core runs as the app's own user, so the app's directory is its own.
-		const base = "/data/data/com.follow.clash"
-		dir = filepath.Join(base, "files")
-		profiles = filepath.Join(dir, "profiles")
-		if info, err := os.Stat(profiles); err == nil && info.IsDir() {
-			return dir, profiles, true
-		}
+	home := strings.TrimSpace(C.Path.HomeDir())
+	if home == "" {
 		return "", "", false
 	}
-	base, err := os.UserConfigDir()
-	if err != nil {
+	profiles = filepath.Join(home, "profiles")
+	if info, err := os.Stat(profiles); err != nil || !info.IsDir() {
 		return "", "", false
 	}
-	dir = filepath.Join(base, "com.follow", "clash")
-	profiles = filepath.Join(dir, "profiles")
-	if info, err := os.Stat(profiles); err == nil && info.IsDir() {
-		return dir, profiles, true
-	}
-	return "", "", false
+	return home, profiles, true
 }
 
 // currentProfileID answers which profile the app is showing.
