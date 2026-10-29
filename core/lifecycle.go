@@ -44,6 +44,7 @@ func handleStartListener() bool {
 	configMu.Lock()
 	defer configMu.Unlock()
 	isRunning.Store(true)
+	noteCoreEvent("startListener: the app asks for the ports")
 	updateListeners(currentConfig)
 	resolver.ResetConnection()
 	// A probe already out left before the TUN routes and over the DNS
@@ -56,6 +57,8 @@ func handleStopListener() bool {
 	configMu.Lock()
 	defer configMu.Unlock()
 	isRunning.Store(false)
+	noteCoreEvent("stopListener: every port closes, the process stays")
+	noteCoreEvent("stopListener called from:\n%s", shortStack())
 	listener.StopListener()
 	resolver.ResetConnection()
 	return true
@@ -88,6 +91,7 @@ func updateListeners(cfg *config.Config) {
 }
 
 func handleShutdown() bool {
+	noteCoreEvent("shutdown: the app ends the core")
 	handleStopLog()
 	stopRouteWatch()
 

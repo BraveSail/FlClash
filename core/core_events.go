@@ -10,6 +10,17 @@ import (
 	C "github.com/metacubex/mihomo/constant"
 )
 
+// shortStack is the first frames of a call chain: enough to name the caller,
+// short enough to read in a log tail.
+func shortStack() string {
+	full := string(stackTrace())
+	lines := strings.Split(full, "\n")
+	if len(lines) > 14 {
+		lines = lines[:14]
+	}
+	return strings.Join(lines, "\n")
+}
+
 // noteCoreEvent writes a line beside the profile.
 //
 // The app reports a setup it never saw answered, and the core meanwhile applies

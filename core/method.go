@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"runtime"
 	"sync/atomic"
+	"time"
 )
 
 type MethodCall struct {
@@ -46,8 +47,25 @@ func dispatchMethodCall(call *MethodCall, reply func(data []byte)) {
 		return
 	}
 	safeGo(string(call.Method), func() {
-		reply(handleMethodCall(call))
+		if isChattyMethod(call.Method) {
+			reply(handleMethodCall(call))
+			return
+		}
+		started := time.Now()
+		data := handleMethodCall(call)
+		noteCoreEvent("rpc %s answered in %s (%d bytes)", call.Method, time.Since(started), len(data))
+		reply(data)
 	})
+}
+
+// isChattyMethod lists the calls an open panel makes every second; answering
+// them is not news and would bury the ones that only happen at a state change.
+func isChattyMethod(method CoreMethod) bool {
+	switch method {
+	case getTrafficMethod, getTotalTrafficMethod, getConnectionsMethod, getMemoryStatsMethod:
+		return true
+	}
+	return false
 }
 
 func handleCrash() {
