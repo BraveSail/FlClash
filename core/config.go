@@ -184,6 +184,7 @@ func applyConfig(params *SetupParams) error {
 	hub.ApplyConfig(cfg)
 	applied := time.Now()
 	patchSelectGroup(params.SelectedMap)
+	rememberSelection(params.SelectedMap)
 	bumpRouteEpoch()
 	updateListeners(cfg)
 	noteCoreEvent("setup stages: load %s, apply %s, listen %s",

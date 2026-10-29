@@ -140,6 +140,9 @@ func applyPushedProfile(pulled []byte) error {
 	configMu.Lock()
 	currentConfig = withPlatformLimits(parsed)
 	hub.ApplyConfig(currentConfig)
+	// The pushed configuration's groups start at their first member; the picks
+	// the device already made are not part of it and would be lost here.
+	restoreSelection()
 	updateListeners(currentConfig)
 	bumpRouteEpoch()
 	configMu.Unlock()

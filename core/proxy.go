@@ -172,6 +172,9 @@ func handleChangeProxy(params *ChangeProxyParams) *ChangeProxyResult {
 		return &ChangeProxyResult{Message: err.Error()}
 	}
 	changed := selector.Now() != before
+	if changed {
+		rememberSelection(map[string]string{params.GroupName: params.ProxyName})
+	}
 	refreshRouteLocked(routeUnchanged)
 	return &ChangeProxyResult{Changed: changed}
 }
@@ -179,12 +182,66 @@ func handleChangeProxy(params *ChangeProxyParams) *ChangeProxyResult {
 func patchSelectGroup(mapping map[string]string) {
 	selectMu.Lock()
 	defer selectMu.Unlock()
+	applySelectionLocked(mapping)
+}
+
+// applySelectionLocked is the picking itself; the caller already holds the lock
+// the group objects are read under.
+func applySelectionLocked(mapping map[string]string) {
 	proxies := tunnel.AllProxies()
 	for name, selected := range mapping {
 		if selector, ok := adapterAs[outboundgroup.SelectAble](proxies[name]); ok {
 			selector.ForceSet(selected)
 		}
 	}
+}
+
+// The host's picks, kept for the next time the groups are rebuilt.
+//
+// A configuration the hub pushes replaces every proxy and every group, so a
+// selector comes back pointing at its first member: a device that was routed
+// through its chosen node silently starts sending everything to the top of the
+// list, until someone clicks a node again. The picks outlive the rebuild, so
+// they are kept here and put back after it.
+var (
+	selectionMu     sync.Mutex
+	lastSelectedMap = map[string]string{}
+	hasSelection    bool
+)
+
+func rememberSelection(mapping map[string]string) {
+	if len(mapping) == 0 {
+		return
+	}
+	selectionMu.Lock()
+	defer selectionMu.Unlock()
+	if !hasSelection {
+		lastSelectedMap = map[string]string{}
+		hasSelection = true
+	}
+	for name, selected := range mapping {
+		if name == "" || selected == "" {
+			continue
+		}
+		lastSelectedMap[name] = selected
+	}
+}
+
+func restoreSelection() {
+	selectionMu.Lock()
+	if !hasSelection || len(lastSelectedMap) == 0 {
+		selectionMu.Unlock()
+		return
+	}
+	picks := make(map[string]string, len(lastSelectedMap))
+	for name, selected := range lastSelectedMap {
+		picks[name] = selected
+	}
+	selectionMu.Unlock()
+
+	selectMu.Lock()
+	defer selectMu.Unlock()
+	applySelectionLocked(picks)
 }
 
 // Tailscale and EasyTier register a DNS client under the proxy name when built
