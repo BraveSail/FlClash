@@ -65,22 +65,29 @@ func startMeshHub() {
 	// offered. A device that has never been seen registers itself and waits to
 	// be let in; the next attempt - the poll, a minute later - is signed and
 	// succeeds.
-	registerDeviceKey(*block)
+	//
+	// None of this may run on the caller's goroutine: this is called from the
+	// apply that answers the app's setup, and that answer must not wait on a
+	// hub - the tunnel and DNS were just rebuilt, so a registration issued here
+	// can sit on a route that is not carrying yet, and the app times out on a
+	// core that finished its work.
+	go func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		registerDeviceKey(*block)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	client, err := hubprofile.New(*block, applyPushedProfile)
-	if err != nil {
-		log.Warnln("[Profile] %s", err.Error())
-		cancel()
-		return
-	}
-
-	meshHubMu.Lock()
-	meshHubCancel = cancel
-	meshHubMu.Unlock()
-	log.Infoln("[Profile] this device takes its configuration from %s as %q", block.URL, block.ID)
-	client.Start(ctx)
-	go publishLoop(ctx, *block)
+		client, err := hubprofile.New(*block, applyPushedProfile)
+		if err != nil {
+			log.Warnln("[Profile] %s", err.Error())
+			cancel()
+			return
+		}
+		meshHubMu.Lock()
+		meshHubCancel = cancel
+		meshHubMu.Unlock()
+		log.Infoln("[Profile] this device takes its configuration from %s as %q", block.URL, block.ID)
+		client.Start(ctx)
+		publishLoop(ctx, *block)
+	}()
 }
 
 // publishLoop keeps the app's own profile file equal to the configuration this
