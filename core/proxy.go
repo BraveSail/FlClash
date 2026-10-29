@@ -12,6 +12,7 @@ import (
 	"github.com/metacubex/mihomo/adapter/outboundgroup"
 	"github.com/metacubex/mihomo/adapter/provider"
 	"github.com/metacubex/mihomo/common/convert"
+	"github.com/metacubex/mihomo/component/profile/cachefile"
 	"github.com/metacubex/mihomo/config"
 	"github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/log"
@@ -174,6 +175,11 @@ func handleChangeProxy(params *ChangeProxyParams) *ChangeProxyResult {
 	changed := selector.Now() != before
 	if changed {
 		rememberSelection(map[string]string{params.GroupName: params.ProxyName})
+		// The cache is where mihomo looks for the picks when it rebuilds the
+		// groups, and the HTTP API has always written it here; this path is the
+		// app's and wrote nowhere, so every rebuild started from the top of the
+		// list no matter what was chosen.
+		cachefile.Cache().SetSelected(params.GroupName, params.ProxyName)
 	}
 	refreshRouteLocked(routeUnchanged)
 	return &ChangeProxyResult{Changed: changed}

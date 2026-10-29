@@ -3,6 +3,7 @@ package core
 import (
 	"testing"
 
+	"github.com/metacubex/mihomo/config"
 	"github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/tunnel"
 )
@@ -57,4 +58,24 @@ func resetSelectionForTest() {
 	lastSelectedMap = map[string]string{}
 	hasSelection = false
 	selectionMu.Unlock()
+}
+
+// The app's profile never says store-selected, and the zero value turns the
+// cache off - which is what made every rebuild of the groups start at the top
+// of the list. Every configuration the core runs keeps the picks; this pins the
+// decision on a config parsed from a profile like the app's, where the field is
+// present and false.
+func TestPlatformLimitsKeepThePicks(t *testing.T) {
+	// A profile that says nothing about it, which is what the app hands over.
+	var raw config.RawConfig
+	cfg := &config.Config{
+		NTP:     &config.NTP{},
+		Profile: &config.Profile{StoreSelected: raw.Profile.StoreSelected},
+	}
+	if cfg.Profile.StoreSelected {
+		t.Fatal("a profile that says nothing must start with the cache off")
+	}
+	if !withPlatformLimits(cfg).Profile.StoreSelected {
+		t.Fatal("a configuration handed to the core must keep the selected cache on")
+	}
 }

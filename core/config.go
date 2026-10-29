@@ -16,6 +16,7 @@ import (
 	"github.com/metacubex/mihomo/component/age"
 	"github.com/metacubex/mihomo/component/auth"
 	"github.com/metacubex/mihomo/component/dialer"
+	"github.com/metacubex/mihomo/component/profile/cachefile"
 	"github.com/metacubex/mihomo/component/resolver"
 	"github.com/metacubex/mihomo/config"
 	"github.com/metacubex/mihomo/constant"
@@ -134,6 +135,15 @@ func withPlatformLimits(cfg *config.Config) *config.Config {
 		log.Warnln("ntp write-to-system ignored: Android does not let apps set the system time")
 		cfg.NTP.WriteToSystem = false
 	}
+	// The app's profile says nothing about profile.store-selected, and its zero
+	// value switches the cache off. A click then lives only in memory: every
+	// rebuild of the groups starts from the top of the list, which is exactly
+	// what "the node I picked is not the node in use" describes. The picks are
+	// worth keeping, so the cache stays on for every configuration we run.
+	if cfg.Profile == nil {
+		cfg.Profile = &config.Profile{}
+	}
+	cfg.Profile.StoreSelected = true
 	return cfg
 }
 
@@ -179,12 +189,21 @@ func applyConfig(params *SetupParams) error {
 		cfg = fallback
 	}
 
+	cfg = withPlatformLimits(cfg)
 	currentConfig = cfg
 	loaded := time.Now()
 	hub.ApplyConfig(cfg)
 	applied := time.Now()
 	patchSelectGroup(params.SelectedMap)
 	rememberSelection(params.SelectedMap)
+	// What the app sends at setup is the same set of picks the HTTP API would
+	// have stored on a click; keeping them in the cache is what lets a rebuilt
+	// or restarted core come back to them on its own.
+	for group, selected := range params.SelectedMap {
+		if group != "" {
+			cachefile.Cache().SetSelected(group, selected)
+		}
+	}
 	bumpRouteEpoch()
 	updateListeners(cfg)
 	noteCoreEvent("setup stages: load %s, apply %s, listen %s",
