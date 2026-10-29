@@ -196,6 +196,12 @@ func applyConfig(params *SetupParams) error {
 	applied := time.Now()
 	patchSelectGroup(params.SelectedMap)
 	rememberSelection(params.SelectedMap)
+	// The app sends its picks with the setup, but a group it says nothing about
+	// keeps whatever its first member is - which is why a device came up routing
+	// everything through one node until a group was clicked. The cache holds the
+	// picks from every earlier setup and click; putting them back here is what
+	// makes a start land on the same nodes as the last one.
+	restoreSelection()
 	// What the app sends at setup is the same set of picks the HTTP API would
 	// have stored on a click; keeping them in the cache is what lets a rebuilt
 	// or restarted core come back to them on its own.
