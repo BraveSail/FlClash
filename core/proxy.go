@@ -242,6 +242,17 @@ func restoreSelection() {
 	selectMu.Lock()
 	defer selectMu.Unlock()
 	applySelectionLocked(picks)
+	// What landed is worth a line: a pick for a group the pushed profile no
+	// longer has is silently dropped, and that is exactly what a device shows
+	// as "the node I chose is not the node being used".
+	applied := 0
+	proxies := tunnel.AllProxies()
+	for name, selected := range picks {
+		if group, ok := adapterAs[outboundgroup.ProxyGroup](proxies[name]); ok && group.Now() == selected {
+			applied++
+		}
+	}
+	noteCoreEvent("selection put back on %d of %d group(s)", applied, len(picks))
 }
 
 // Tailscale and EasyTier register a DNS client under the proxy name when built
