@@ -138,8 +138,27 @@ func applyPushedProfile(pulled []byte) error {
 		return err
 	}
 	configMu.Lock()
-	currentConfig = withPlatformLimits(parsed)
+	// A pushed profile is a profile: proxies, groups, providers, rules. Its
+	// ports, TUN, DNS and controller are the publishing device's, not this
+	// host's - applying them rebinds mixed 7890 to the hub's own numbering and a
+	// device that was proxying fine minutes earlier answers nothing on the port
+	// its app was told to use.
+	merged := withPlatformLimits(parsed)
+	if currentConfig != nil {
+		merged.General = currentConfig.General
+		merged.DNS = currentConfig.DNS
+		merged.Controller = currentConfig.Controller
+		merged.Experimental = currentConfig.Experimental
+		merged.NTP = currentConfig.NTP
+		merged.Profile = currentConfig.Profile
+		merged.Sniffer = currentConfig.Sniffer
+		merged.Listeners = currentConfig.Listeners
+	}
+	currentConfig = merged
 	hub.ApplyConfig(currentConfig)
+	if merged.General != nil {
+		noteCoreEvent("pushed profile applied; host ports kept (mixed %d)", merged.General.MixedPort)
+	}
 	// The pushed configuration's groups start at their first member; the picks
 	// the device already made are not part of it and would be lost here.
 	restoreSelection()
