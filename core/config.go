@@ -169,6 +169,9 @@ func applyConfig(params *SetupParams) error {
 	bumpRouteEpoch()
 	reconcileGeoUpdater()
 	scheduleLoadMemoryRelease()
+	// A device that names a hub - in its configuration or in the build it
+	// runs - keeps taking its configuration from there.
+	startMeshHub()
 	if err != nil {
 		// The host tells this apart from a call that failed: the default config runs.
 		return &MethodError{Code: "config_rejected", Message: err.Error()}
