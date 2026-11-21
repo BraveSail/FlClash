@@ -504,6 +504,67 @@ jobs:
           path: ./dist
           overwrite: true
 
+  ont:
+    name: ONT core linux armv5
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: ${{ env.BRANCH_CACHE }}
+          cache-dependency-path: core/go.sum
+
+      # The ONT runs a standalone core, not the app's IPC wrapper: no Flutter, no
+      # helper, no TUN. It also has no app to import a subscription and no
+      # operator to approve a key, so the link it is built with has to carry the
+      # shared token - without it the core registers, waits for an approval
+      # nobody gives, and serves nothing.
+      - name: Build ONT core
+        env:
+          HUB_URL: ${{ vars.HUB_URL }}
+          HUB_TOKEN: ${{ secrets.HUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HUB_URL:-}" ]; then
+            echo "HUB_URL is unset; the core would not name a hub" >&2
+            exit 1
+          fi
+          if [ -z "${HUB_TOKEN:-}" ]; then
+            echo "HUB_TOKEN is unset; the core could pull no profile" >&2
+            exit 1
+          fi
+          cd core/Clash.Meta
+          mkdir -p ../../dist
+          HUB_LINK="${HUB_URL}/?token=${HUB_TOKEN}"
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=5 \
+            go build -trimpath \
+            -ldflags "-w -s -X 'github.com/metacubex/mihomo/constant.HubURL=${HUB_LINK}'" \
+            -o ../../dist/mihomo-ont-armv5 .
+          cd ../../dist
+          sha256sum mihomo-ont-armv5 > mihomo-ont-armv5.sha256
+          ls -l mihomo-ont-armv5
+          file mihomo-ont-armv5 || true
+          if grep -qc "token=" mihomo-ont-armv5; then
+            echo "the built core carries a hub token"
+          else
+            echo "the built core carries no hub token" >&2
+            exit 1
+          fi
+
+      - name: Upload ONT core
+        uses: actions/upload-artifact@v4
+        with:
+          name: mihomo-ont-armv5-${{ github.sha }}
+          path: ./dist/mihomo-ont-armv5*
+          if-no-files-found: error
+          overwrite: true
+
   upload:
     permissions:
       contents: write
