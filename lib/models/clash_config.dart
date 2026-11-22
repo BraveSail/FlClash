@@ -238,7 +238,8 @@ extension ProxyExt on Proxy {
   List<String> get searchFields => [name, type];
 }
 
-/// The `type` values `adapter.ParseProxy` accepts, in its own order.
+/// Core parser order, excluding the mesh-specific peer and directory types
+/// that have no custom proxy form.
 const customProxyTypes = [
   'ss',
   'ssr',

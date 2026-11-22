@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:fl_clash/enum/enum.dart';
@@ -79,6 +80,41 @@ Future<void> _loadSources(ProviderContainer container) async {
   await container.read(customProxiesProvider.future);
   await container.read(proxyDialersProvider(profileId).future);
   await container.read(clashProvidersProvider.future);
+}
+
+String _readCoreSource(File file) =>
+    const LineSplitter().convert(file.readAsStringSync()).join('\n');
+
+Map<String, String?> _proxyCases(String source) {
+  final body = RegExp(
+    r'^\tswitch proxyType \{\n([\s\S]*?)^\t\}',
+    multiLine: true,
+  ).firstMatch(source)?.group(1);
+  if (body == null) {
+    throw const FormatException('Cannot find the Go proxy type switch');
+  }
+  final cases = RegExp(
+    r'^\tcase\b([\s\S]*?)(?=^\t(?:case\b|default:)|(?![\s\S]))',
+    multiLine: true,
+  );
+  final header = RegExp(r'^\s*("[^"\\\n]+"(?:\s*,\s*"[^"\\\n]+")*)\s*:');
+  final literal = RegExp(r'"([^"\\\n]+)"');
+  final option = RegExp(r'\n\t\t\w+ := &outbound\.(\w+)\{');
+  final types = <String, String?>{};
+  for (final clause in cases.allMatches(body)) {
+    final code = clause.group(1)!;
+    final names = header.firstMatch(code);
+    if (names == null) {
+      throw FormatException(
+        'Unsupported Go proxy case: ${code.trimLeft().split('\n').first}',
+      );
+    }
+    final struct = option.firstMatch(code.substring(names.end))?.group(1);
+    for (final name in literal.allMatches(names.group(1)!)) {
+      types[name.group(1)!] = struct;
+    }
+  }
+  return types;
 }
 
 void main() {
@@ -932,19 +968,48 @@ void main() {
     });
   });
 
-  test('customProxyTypes lists every type the core parses', () {
-    final source = File('core/Clash.Meta/adapter/parser.go').readAsStringSync();
-    expect(customProxyTypes, [
-      for (final match in RegExp(
-        r'^\tcase "([^"]+)":',
-        multiLine: true,
-      ).allMatches(source))
-        match.group(1)!,
-    ]);
+  const root = 'core/Clash.Meta/adapter';
+  const meshProxyTypes = {'tailnet-peer', 'peer-directory'};
+  final parser = _readCoreSource(File('$root/parser.go'));
+  final proxyCases = _proxyCases(parser);
+
+  test('proxy parser scan reports aliases in a shared case', () {
+    const fixture =
+        '\tswitch proxyType {\n'
+        '\tcase "first", "first-alias":\n'
+        '\t\topt := &outbound.FirstOption{}\n'
+        '\tcase "second",\n'
+        '\t\t"second-alias":\n'
+        '\t\topt := &outbound.SecondOption{}\n'
+        '\t}';
+    final cases = _proxyCases(fixture);
+    expect(cases.keys, ['first', 'first-alias', 'second', 'second-alias']);
+    expect(cases, {
+      'first': 'FirstOption',
+      'first-alias': 'FirstOption',
+      'second': 'SecondOption',
+      'second-alias': 'SecondOption',
+    });
+  });
+
+  test('proxy parser scan rejects a case it cannot interpret', () {
+    const fixture =
+        '\tswitch proxyType {\n'
+        '\tcase proxyTypeConstant:\n'
+        '\t\topt := &outbound.SomeOption{}\n'
+        '\t}';
+    expect(() => _proxyCases(fixture), throwsFormatException);
+  });
+
+  test('customProxyTypes lists every editable core type in parser order', () {
+    expect(proxyCases.keys, containsAll(meshProxyTypes));
+    expect(
+      customProxyTypes,
+      proxyCases.keys.where((type) => !meshProxyTypes.contains(type)),
+    );
   });
 
   group('proxy fields follow the option structs of the core', () {
-    const root = 'core/Clash.Meta/adapter';
     final structs = {
       for (final file in Directory(
         '$root/outbound',
@@ -953,7 +1018,7 @@ void main() {
           for (final match in RegExp(
             r'^type (\w+) struct \{\n([\s\S]*?)\n\}',
             multiLine: true,
-          ).allMatches(file.readAsStringSync()))
+          ).allMatches(_readCoreSource(file)))
             match.group(1)!: match.group(2)!,
     };
     final keyPattern = RegExp(r'proxy:"([^",]+)(,omitempty)?"');
@@ -963,18 +1028,16 @@ void main() {
     );
     final embeddedPattern = RegExp(r'^\t(\w+Option)$', multiLine: true);
     final bodies = {
-      for (final match in RegExp(
-        r'^\tcase "([^"]+)":\n\t\t\w+ := &outbound\.(\w+)\{',
-        multiLine: true,
-      ).allMatches(File('$root/parser.go').readAsStringSync()))
-        match.group(1)!: [
-          structs[match.group(2)]!,
-          for (final embedded in embeddedPattern.allMatches(
-            structs[match.group(2)]!,
-          ))
-            if (embedded.group(1) != 'BasicOption') structs[embedded.group(1)]!,
-          structs['BasicOption']!,
-        ].join('\n'),
+      for (final MapEntry(key: type, value: struct) in proxyCases.entries)
+        if (!meshProxyTypes.contains(type))
+          if (structs[struct] case final body?)
+            type: [
+              body,
+              for (final embedded in embeddedPattern.allMatches(body))
+                if (embedded.group(1) != 'BasicOption')
+                  structs[embedded.group(1)]!,
+              structs['BasicOption']!,
+            ].join('\n'),
     };
     Set<String> keysIn(String body, {bool required = false}) => {
       for (final match in keyPattern.allMatches(body))
@@ -984,7 +1047,7 @@ void main() {
     Set<String> keysOf(String type, {bool required = false}) =>
         keysIn(bodies[type]!, required: required);
 
-    test('every type the core parses has its struct', () {
+    test('every editable core type has its option struct', () {
       expect(bodies.keys, customProxyTypes);
     });
 
