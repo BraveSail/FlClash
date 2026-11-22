@@ -441,6 +441,25 @@ class ProfileItem extends ConsumerWidget {
     final appLocalizations = context.appLocalizations;
     final isUrl = profile.type == ProfileType.url;
     final isCustom = profile.type == ProfileType.custom;
+    if (isHubProfile(profile)) {
+      return [
+        PopupMenuItem(
+          glyph: AppGlyphs.eye,
+          label: appLocalizations.runtimeConfig,
+          onPressed: () {
+            _handlePreview(context);
+          },
+        ),
+        if (isUrl)
+          PopupMenuItem(
+            glyph: AppGlyphs.sync,
+            label: appLocalizations.sync,
+            onPressed: () {
+              updateProfile(ref);
+            },
+          ),
+      ];
+    }
     return [
       PopupMenuItem(
         glyph: AppGlyphs.edit,

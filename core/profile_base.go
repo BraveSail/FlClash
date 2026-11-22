@@ -17,9 +17,9 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// What makes a profile large stays in the Core; the overlay the host sends
-// back replaces every other section.
-var profileBaseSections = []string{"proxies", "proxy-groups", "sub-rules"}
+// What makes a profile large (or core-owned like mesh) stays in the Core;
+// the overlay the host sends back replaces every other section.
+var profileBaseSections = []string{"proxies", "proxy-groups", "sub-rules", "mesh"}
 
 func handleGetProfileBase(params PathParams) (*ProfileBase, error) {
 	defer scheduleLoadMemoryRelease()
@@ -44,7 +44,7 @@ func handleGetProfileBase(params PathParams) (*ProfileBase, error) {
 			base.MatchRules = append(base.MatchRules, rule)
 		}
 	}
-	raw.Proxy, raw.ProxyGroup, raw.Rule, raw.SubRules = nil, nil, nil, nil
+	raw.Proxy, raw.ProxyGroup, raw.Rule, raw.SubRules, raw.Mesh = nil, nil, nil, nil, nil
 	base.Config = raw
 	return base, nil
 }

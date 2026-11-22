@@ -117,6 +117,12 @@ class _EditProfileViewState extends ConsumerState<EditProfileView> {
   }
 
   Future<void> _handleConfirm() async {
+    if (isHubProfile(widget.profile)) {
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+      return;
+    }
     if (_issue(context.appLocalizations) != null) {
       setState(() {
         _attempted = true;
@@ -393,6 +399,9 @@ Future<void> renameProfile(
   Profile profile, {
   bool selectAll = false,
 }) async {
+  if (isHubProfile(profile)) {
+    return;
+  }
   final appLocalizations = context.appLocalizations;
   final profilesAction = ref.read(profilesActionProvider.notifier);
   final label = await dialogs.showCommonDialog<String>(

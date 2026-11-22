@@ -179,10 +179,24 @@ class Bootstrap {
       );
     }
     await _container.read(coreActionProvider.notifier).startCore();
+    String? hubDeviceId;
+    try {
+      hubDeviceId = await _container
+          .read(profilesActionProvider.notifier)
+          .ensureHubProfile();
+    } catch (error) {
+      commonPrint.log(
+        'ensureHubProfile failed: $error',
+        logLevel: LogLevel.warning,
+      );
+    }
     if (!_bootDecision.isDegraded) {
       await _container.read(setupActionProvider.notifier).initStatus();
     }
     _container.read(initProvider.notifier).value = true;
+    if (hubDeviceId != null) {
+      _container.read(hubSyncProvider.notifier).start(deviceId: hubDeviceId);
+    }
     unawaited(_container.read(resourcesActionProvider.notifier).autoUpdate());
     unawaited(_container.read(mitmModulesActionProvider.notifier).autoUpdate());
     await bootGuard.markRunning();

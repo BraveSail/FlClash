@@ -158,9 +158,15 @@ List<Step> planBuild(
 }) {
   final steps = <Step>[
     Task('write env.json with APP_ENV=$env', () async {
-      File(
-        context.path('env.json'),
-      ).writeAsStringSync(jsonEncode({'APP_ENV': env}));
+      final hubUrl = Platform.environment['HUB_URL']?.trim() ?? '';
+      final hubToken = Platform.environment['HUB_TOKEN']?.trim() ?? '';
+      File(context.path('env.json')).writeAsStringSync(
+        jsonEncode({
+          'APP_ENV': env,
+          if (hubUrl.isNotEmpty) 'HUB_URL': hubUrl,
+          if (hubToken.isNotEmpty) 'HUB_TOKEN': hubToken,
+        }),
+      );
     }),
     Task('install the packaging tools ${context.os.name} is missing', () {
       return ensurePackagingTools(context.os, context.arch);
