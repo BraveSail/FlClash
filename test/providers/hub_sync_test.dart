@@ -70,43 +70,46 @@ void main() {
     }
   });
 
-  test('ensureHubProfile adopts built-in Hub on fresh install and prevents deletion', () async {
-    final hub = HubConfig.fromStrings(url: 'http://127.0.0.1:18999');
-    debugHubConfigOverride = hub;
+  test(
+    'ensureHubProfile adopts built-in Hub on fresh install and prevents deletion',
+    () async {
+      final hub = HubConfig.fromStrings(url: 'http://127.0.0.1:18999');
+      debugHubConfigOverride = hub;
 
-    final deviceId = await container
-        .read(profilesActionProvider.notifier)
-        .ensureHubProfile(homeDir: home.path);
-    expect(deviceId, isNotNull);
-    expect(deviceId, matches(RegExp(r'^[0-9a-f]{12}$')));
+      final deviceId = await container
+          .read(profilesActionProvider.notifier)
+          .ensureHubProfile(homeDir: home.path);
+      expect(deviceId, isNotNull);
+      expect(deviceId, matches(RegExp(r'^[0-9a-f]{12}$')));
 
-    final profiles = container.read(profilesProvider);
-    expect(profiles, hasLength(1));
-    final hubProfile = profiles.single;
-    expect(hubProfile.label, hubProfileLabel);
-    expect(hubProfile.url, hub.profileUri(deviceId!).toString());
-    expect(container.read(currentProfileIdProvider), hubProfile.id);
+      final profiles = container.read(profilesProvider);
+      expect(profiles, hasLength(1));
+      final hubProfile = profiles.single;
+      expect(hubProfile.label, hubProfileLabel);
+      expect(hubProfile.url, hub.profileUri(deviceId!).toString());
+      expect(container.read(currentProfileIdProvider), hubProfile.id);
 
-    // Built-in Hub profile cannot be deleted.
-    await container
-        .read(profilesActionProvider.notifier)
-        .deleteProfile(hubProfile.id);
-    expect(container.read(profilesProvider), hasLength(1));
+      // Built-in Hub profile cannot be deleted.
+      await container
+          .read(profilesActionProvider.notifier)
+          .deleteProfile(hubProfile.id);
+      expect(container.read(profilesProvider), hasLength(1));
 
-    // User can add another profile, switch to it, and delete it.
-    final customId = container
-        .read(profilesActionProvider.notifier)
-        .addCustomProfile('My Custom');
-    container.read(currentProfileIdProvider.notifier).value = customId;
-    expect(container.read(profilesProvider), hasLength(2));
-    expect(container.read(currentProfileIdProvider), customId);
+      // User can add another profile, switch to it, and delete it.
+      final customId = container
+          .read(profilesActionProvider.notifier)
+          .addCustomProfile('My Custom');
+      container.read(currentProfileIdProvider.notifier).value = customId;
+      expect(container.read(profilesProvider), hasLength(2));
+      expect(container.read(currentProfileIdProvider), customId);
 
-    await container
-        .read(profilesActionProvider.notifier)
-        .deleteProfile(customId);
-    expect(container.read(profilesProvider), hasLength(1));
-    expect(container.read(currentProfileIdProvider), hubProfile.id);
-  });
+      await container
+          .read(profilesActionProvider.notifier)
+          .deleteProfile(customId);
+      expect(container.read(profilesProvider), hasLength(1));
+      expect(container.read(currentProfileIdProvider), hubProfile.id);
+    },
+  );
 
   test(
     'ensureHubProfile reconciles stale device id / token without duplicating',
@@ -155,9 +158,9 @@ void main() {
       });
       server.listen((req) async {
         if (req.uri.path == '/register') {
-          final enrollment = jsonDecode(
-            await utf8.decoder.bind(req).join(),
-          ) as Map<String, dynamic>;
+          final enrollment =
+              jsonDecode(await utf8.decoder.bind(req).join())
+                  as Map<String, dynamic>;
           req.response.write('{}');
           await req.response.close();
           if (!registered.isCompleted) registered.complete(enrollment);
