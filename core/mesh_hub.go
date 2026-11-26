@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	meshident "github.com/metacubex/mihomo/component/mesh"
-	"github.com/metacubex/mihomo/component/hubprofile"
-	"github.com/metacubex/mihomo/component/profile/cachefile"
 	"github.com/metacubex/mihomo/common/yaml"
+	"github.com/metacubex/mihomo/component/hubprofile"
+	meshident "github.com/metacubex/mihomo/component/mesh"
+	"github.com/metacubex/mihomo/component/profile/cachefile"
 	"github.com/metacubex/mihomo/config"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/hub"

@@ -38,6 +38,10 @@ class ProfilesAction extends _$ProfilesAction {
   }
 
   Future<void> deleteProfile(int id) async {
+    final profile = ref.read(profilesProvider).getProfile(id);
+    if (profile != null && isHubProfile(profile)) {
+      return;
+    }
     await ref.read(profilesProvider.notifier).del(id);
     await clearEffect(id);
     final currentProfileId = ref.read(currentProfileIdProvider);
@@ -62,7 +66,9 @@ class ProfilesAction extends _$ProfilesAction {
       for (final profile in ref.read(profilesProvider)) profile.id,
     ]) {
       final profile = ref.read(profilesProvider).getProfile(id);
-      if (profile == null || !profile.autoUpdate) continue;
+      if (profile == null || !profile.autoUpdate || isHubProfile(profile)) {
+        continue;
+      }
       final isNotNeedUpdate = profile.lastUpdateDate
           ?.add(profile.autoUpdateDuration)
           .isBeforeNow;
@@ -81,6 +87,60 @@ class ProfilesAction extends _$ProfilesAction {
     ref.read(profilesProvider.notifier).put(profile);
     if (ref.read(currentProfileIdProvider) != null) return;
     ref.read(currentProfileIdProvider.notifier).value = profile.id;
+  }
+
+  /// Ensures the built-in Hub subscription exists and points to this device's
+  /// own Hub profile URL, returning the derived device ID (or null when this
+  /// build has no Hub configured).
+  ///
+  /// Performs only local key derivation and database/preference reconciliation;
+  /// network downloads happen later via normal profile setup and [HubSync].
+  Future<String?> ensureHubProfile({HubConfig? config, String? homeDir}) async {
+    final effectiveConfig = config ?? defaultHubConfig;
+    if (!effectiveConfig.isConfigured) {
+      return null;
+    }
+    final deviceId = await loadOrCreateMeshDeviceId(homeDir: homeDir);
+    final canonicalUrl = effectiveConfig.profileUri(deviceId).toString();
+    final profiles = ref.read(profilesProvider);
+    final currentId = ref.read(currentProfileIdProvider);
+
+    Profile? hubProfile;
+    for (final profile in profiles) {
+      if (!effectiveConfig.isHubProfile(profile)) continue;
+      if (profile.id == currentId) {
+        hubProfile = profile;
+        break;
+      }
+      hubProfile ??= profile;
+    }
+
+    if (hubProfile == null) {
+      hubProfile = Profile.normal(label: hubProfileLabel, url: canonicalUrl);
+      ref.read(profilesProvider.notifier).put(hubProfile);
+    } else if (hubProfile.url != canonicalUrl ||
+        hubProfile.label != hubProfileLabel ||
+        !hubProfile.autoUpdate) {
+      hubProfile = hubProfile.copyWith(
+        label: hubProfileLabel,
+        url: canonicalUrl,
+        autoUpdate: true,
+      );
+      ref.read(profilesProvider.notifier).put(hubProfile);
+    }
+
+    if (currentId == null) {
+      ref.read(currentProfileIdProvider.notifier).value = hubProfile.id;
+      try {
+        await preferences.saveConfig(ref.read(configProvider));
+      } catch (error) {
+        commonPrint.log(
+          'ensureHubProfile saveConfig: $error',
+          logLevel: LogLevel.warning,
+        );
+      }
+    }
+    return deviceId;
   }
 
   Future<List<Profile>> providerUsers(Profile profile) async {
@@ -171,8 +231,12 @@ class ProfilesAction extends _$ProfilesAction {
         await clearEffect(profile.id);
         return;
       }
+      final isHub = isHubProfile(latest);
       final newProfile = latest.copyWith(
-        label: latest.label.takeFirstValid([updated.label]),
+        label: isHub
+            ? hubProfileLabel
+            : latest.label.takeFirstValid([updated.label]),
+        autoUpdate: isHub ? true : latest.autoUpdate,
         subscriptionInfo: updated.subscriptionInfo,
         lastUpdateDate: updated.lastUpdateDate,
       );

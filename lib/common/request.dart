@@ -59,13 +59,30 @@ class Request {
     return FlClashHttpOverrides.findProxyForReader(read, uri);
   }
 
-  Future<Response<T>> _download<T>(String url, ResponseType responseType) {
+  Future<Response<T>> _download<T>(
+    String url,
+    ResponseType responseType,
+  ) async {
     final target = downloadTarget(url);
+    final hub = defaultHubConfig;
+    final isHub =
+        hub.matchesOrigin(target.uri) && target.uri.path == hub.profilePath;
+    final identity = isHub ? await loadOrCreateHubIdentity() : null;
+    final uri = identity == null
+        ? target.uri
+        : hub.profileUri(identity.deviceId);
+    final headers = identity == null
+        ? target.headers
+        : await identity.signGet(uri);
     final cancelToken = CancelToken();
-    return _clashDio
+    return (isHub ? releaseDio : _clashDio)
         .getUri<T>(
-          target.uri,
-          options: Options(responseType: responseType, headers: target.headers),
+          uri,
+          options: Options(
+            responseType: responseType,
+            headers: headers,
+            followRedirects: !isHub,
+          ),
           cancelToken: cancelToken,
         )
         .timeout(
@@ -74,7 +91,7 @@ class Request {
             cancelToken.cancel();
             throw DioException.receiveTimeout(
               timeout: downloadTimeoutDuration,
-              requestOptions: RequestOptions(path: url),
+              requestOptions: RequestOptions(path: uri.toString()),
             );
           },
         );

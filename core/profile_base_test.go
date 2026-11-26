@@ -412,3 +412,42 @@ func TestEncodeConfigMappingKeepsEveryKeyAfterAnOpenEndedScalar(t *testing.T) {
 		t.Errorf("decoded %d rules, want all %d in order", len(decoded.Rules), len(rules))
 	}
 }
+
+func TestMergeProfileBasePreservesMeshSection(t *testing.T) {
+	profile := `
+mesh:
+  directory-url: http://127.0.0.1:18080
+  directory-token: test-token
+proxies: []
+rules:
+  - MATCH,DIRECT
+`
+	path := writeBaseProfile(t, profile)
+	base, err := handleGetProfileBase(PathParams{Path: path})
+	if err != nil {
+		t.Fatalf("handleGetProfileBase = %v", err)
+	}
+	if base.Config.Mesh != nil {
+		t.Fatalf("handleGetProfileBase kept Mesh in base.Config, want nil")
+	}
+
+	document, err := mergeProfileBase(&SetupBase{
+		Path:    path,
+		Overlay: `{"mixed-port": 7890, "rules": []}`,
+	})
+	if err != nil {
+		t.Fatalf("mergeProfileBase = %v", err)
+	}
+	var decoded struct {
+		Mesh struct {
+			DirectoryURL   string `yaml:"directory-url"`
+			DirectoryToken string `yaml:"directory-token"`
+		} `yaml:"mesh"`
+	}
+	if err := document.Decode(&decoded); err != nil {
+		t.Fatalf("decode merged document = %v", err)
+	}
+	if decoded.Mesh.DirectoryURL != "http://127.0.0.1:18080" || decoded.Mesh.DirectoryToken != "test-token" {
+		t.Fatalf("merged mesh = %+v, want preserved from profile", decoded.Mesh)
+	}
+}

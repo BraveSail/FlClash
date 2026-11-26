@@ -16,6 +16,7 @@ export 'fixed.dart';
 export 'function.dart';
 export 'future.dart';
 export 'http.dart';
+export 'hub_config.dart';
 export 'indexing.dart';
 export 'input_entries.dart';
 export 'input_limits.dart';
