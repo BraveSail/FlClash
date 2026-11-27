@@ -8,6 +8,37 @@ import 'package:fl_clash/common/release_asset.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('downloads release assets and checksums from the fork', () {
+    const tag = 'v1.2.3';
+    for (final name in [
+      'FlClash-1.2.3-windows-amd64-setup.exe',
+      updateChecksumsName(tag),
+    ]) {
+      expect(
+        releaseAssetUri(tag, name),
+        Uri.https(
+          'github.com',
+          '/BraveSail/FlClash/releases/download/$tag/$name',
+        ),
+      );
+    }
+  });
+
+  test('opens the fork release page', () async {
+    final previous = launchReleasePage;
+    addTearDown(() => launchReleasePage = previous);
+    Uri? opened;
+    launchReleasePage = (uri) async {
+      opened = uri;
+      return true;
+    };
+
+    expect(await openReleasePage('v1.2.3'), isTrue);
+    expect(
+      opened,
+      Uri.https('github.com', '/BraveSail/FlClash/releases/tag/v1.2.3'),
+    );
+  });
   String? nameOn(Abi abi, {required bool replaceable}) {
     final asset = selfUpdateAssetFor(abi, replaceable: replaceable);
     return asset == null ? null : updateAssetName('v0.9.4', asset);

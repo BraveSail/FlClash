@@ -106,23 +106,23 @@ class _PageAdapter implements HttpClientAdapter {
 const _feed = '''
 <?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-US">
-  <id>tag:github.com,2008:https://github.com/owner/repo/releases</id>
-  <link type="text/html" rel="alternate" href="https://github.com/owner/repo/releases"/>
-  <link type="application/atom+xml" rel="self" href="https://github.com/owner/repo/releases.atom"/>
+  <id>tag:github.com,2008:https://github.com/BraveSail/FlClash/releases</id>
+  <link type="text/html" rel="alternate" href="https://github.com/BraveSail/FlClash/releases"/>
+  <link type="application/atom+xml" rel="self" href="https://github.com/BraveSail/FlClash/releases.atom"/>
   <title>Release notes from repo</title>
   <entry>
-    <link rel="alternate" type="text/html" href="https://github.com/owner/repo/releases/tag/v0.9.3"/>
+    <link rel="alternate" type="text/html" href="https://github.com/BraveSail/FlClash/releases/tag/v0.9.3"/>
     <title>v0.9.3</title>
     <content type="html">&lt;h3&gt;Features&lt;/h3&gt;</content>
   </entry>
   <entry>
-    <link rel="alternate" type="text/html" href="https://github.com/owner/repo/releases/tag/v0.9.4-rs.2"/>
+    <link rel="alternate" type="text/html" href="https://github.com/BraveSail/FlClash/releases/tag/v0.9.4-rs.2"/>
   </entry>
   <entry>
-    <link rel="alternate" type="text/html" href="https://github.com/owner/repo/releases/tag/v0.9.4-pre.2%2B2"/>
+    <link rel="alternate" type="text/html" href="https://github.com/BraveSail/FlClash/releases/tag/v0.9.4-pre.2%2B2"/>
   </entry>
   <entry>
-    <link rel="alternate" type="text/html" href="https://github.com/owner/repo/releases/tag/v0.9.4-pre.1"/>
+    <link rel="alternate" type="text/html" href="https://github.com/BraveSail/FlClash/releases/tag/v0.9.4-pre.1"/>
   </entry>
 </feed>
 ''';
@@ -190,7 +190,7 @@ void main() {
             302,
             headers: {
               HttpHeaders.locationHeader: [
-                'https://github.com/owner/repo/releases/tag/v1.2.4',
+                'https://github.com/BraveSail/FlClash/releases/tag/v1.2.4',
               ],
             },
           ),
@@ -208,6 +208,26 @@ void main() {
 
       await expectLater(request.latestRelease(), throwsA(isA<DioException>()));
     });
+
+    test(
+      'rejects a latest release redirect to a different repository',
+      () async {
+        final request = requestAnswering({
+          'api.github.com': () => ResponseBody.fromString('{}', 403),
+          'github.com': () => ResponseBody.fromString(
+            '',
+            302,
+            headers: {
+              HttpHeaders.locationHeader: [
+                'https://github.com/chen08209/FlClash/releases/tag/v1.2.4',
+              ],
+            },
+          ),
+        });
+
+        await expectLater(request.latestRelease(), throwsFormatException);
+      },
+    );
   });
 
   group('newestRelease', () {
@@ -244,6 +264,56 @@ void main() {
 
     const api = 'api.github.com/repos/$repository/releases';
     const feed = 'github.com/$repository/releases.atom';
+
+    test('stable and prerelease lookups request the BraveSail fork', () async {
+      const forkApi = 'api.github.com/repos/BraveSail/FlClash/releases';
+      final request = requestAnswering({
+        '$forkApi/latest': () => json({'tag_name': 'v1.2.0'}),
+        forkApi: () => json([listed('v1.3.0-pre.2')]),
+      });
+
+      expect(
+        (await request.newestRelease(UpdateChannel.stable))['tag_name'],
+        'v1.2.0',
+      );
+      expect(
+        (await request.newestRelease(UpdateChannel.pre))['tag_name'],
+        'v1.3.0-pre.2',
+      );
+    });
+
+    test('returns no update when the fork has no published releases', () async {
+      const forkApi = 'api.github.com/repos/BraveSail/FlClash/releases';
+      final request = requestAnswering({
+        '$forkApi/latest': () => json({'message': 'Not Found'}, 404),
+        forkApi: () => json([]),
+      });
+
+      expect(await request.checkForUpdate(UpdateChannel.stable), isNull);
+      expect(await request.checkForUpdate(UpdateChannel.pre), isNull);
+    });
+
+    test(
+      'a rate-limited empty fork has no update on the web fallback',
+      () async {
+        final request = requestAnswering({
+          'api.github.com/repos/BraveSail/FlClash/releases/latest': () =>
+              json({}, 403),
+          'github.com/BraveSail/FlClash/releases/latest': () =>
+              ResponseBody.fromString(
+                '',
+                302,
+                headers: {
+                  HttpHeaders.locationHeader: [
+                    'https://github.com/BraveSail/FlClash/releases',
+                  ],
+                },
+              ),
+        });
+
+        expect(await request.checkForUpdate(UpdateChannel.stable), isNull);
+      },
+    );
 
     test('stable reads only the latest release', () async {
       final request = requestAnswering({
@@ -319,7 +389,39 @@ void main() {
       return '${uri.host}${uri.path}';
     }
 
-    ResponseBody redirect() => ResponseBody.fromString('', 302);
+    ResponseBody redirect({
+      String host = 'release-assets.githubusercontent.com',
+    }) => ResponseBody.fromString(
+      '',
+      302,
+      headers: {
+        HttpHeaders.locationHeader: ['https://$host/download/checksums'],
+      },
+    );
+
+    test('pre does not accept non-Atom responses as an empty feed', () async {
+      final request = requestAnswering({
+        api: () => json({}, 403),
+        feed: () => ResponseBody.fromString('<html>Proxy login</html>', 200),
+      });
+      await expectLater(
+        request.checkForUpdate(UpdateChannel.pre),
+        throwsFormatException,
+      );
+    });
+
+    test('pre ignores checksums redirected to an unrelated host', () async {
+      final request = requestAnswering({
+        api: () => json({}, 403),
+        feed: () => ResponseBody.fromString(_feed, 200),
+        published('v0.9.4-pre.2+2'): () => redirect(host: 'unrelated.example'),
+        published('v0.9.4-pre.1'): redirect,
+      });
+      expect(
+        (await request.newestRelease(UpdateChannel.pre))['tag_name'],
+        'v0.9.4-pre.1',
+      );
+    });
 
     test('pre falls back to the feed when the API is rate limited', () async {
       final request = requestAnswering({
@@ -433,6 +535,11 @@ void main() {
       'v0.9.4-pre.2+2',
       'v0.9.4-pre.1',
     ]);
+  });
+
+  test('releaseTagsOfFeed ignores entries for other repositories', () {
+    final foreign = _feed.replaceAll('BraveSail/FlClash', 'chen08209/FlClash');
+    expect(releaseTagsOfFeed(foreign), isEmpty);
   });
 
   group('downloadVerifiedRelease', () {

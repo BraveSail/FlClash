@@ -339,8 +339,10 @@ jobs:
 
   version:
     name: Version
-    # Releases publish where the release links point: the public repository.
-    if: &release github.repository == 'chen08209/FlClash' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    # Only tagged pushes in the two release repositories publish artifacts.
+    if: &release >-
+      (github.repository == 'BraveSail/FlClash' || github.repository == 'chen08209/FlClash')
+      && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.tag.outputs.version }}
@@ -497,6 +499,7 @@ jobs:
       - name: Setup
         env:
           ANDROID_NDK_HOME: ${{ steps.build-ndk.outputs.ndk-path }}
+          HUB_URL: ${{ vars.HUB_URL }}
           # The setup hook builds the Core for the host slice only, so an x86_64 slice in the arm64 app cannot run.
           FLUTTER_MACOS_ARM64_ONLY: ${{ matrix.platform == 'macos' && matrix.arch == 'arm64' }}
         # `dart run` first runs every build hook for this runner, Linux GTK and the Go core included; the packager builds them for the target itself.
@@ -598,9 +601,12 @@ jobs:
           dart run tool/changelog.dart render release "${target[@]}" --out release.md
 
       - name: Patch release.md
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
           version=$(jq -r '.artifacts[0].version' dist/manifest.json)
-          sed -e "s|TAG|${{ github.ref_name }}|g" -e "s|VERSION|$version|g" \
+          sed -e "s|TAG|$TAG|g" -e "s|VERSION|$version|g" \
+            -e "s|chen08209/FlClash|$GITHUB_REPOSITORY|g" \
             ./.github/release_template.md >> release.md
 
       - name: Check every file the release is looked up by
@@ -615,7 +621,7 @@ jobs:
           make_latest: ${{ env.IS_STABLE == 'true' }}
 
       - name: Create Homebrew Cask Source Dir
-        if: ${{ env.IS_STABLE == 'true' }}
+        if: ${{ github.repository == 'chen08209/FlClash' && env.IS_STABLE == 'true' }}
         run: |
           dmg() {
             jq -er --arg arch "$1" '.artifacts[] | select(.os == "macos" and .arch == $arch)' dist/manifest.json
@@ -632,7 +638,7 @@ jobs:
             ./.github/homebrew_cask_template.rb > ./brew/Casks/flclash.rb
 
       - name: Push to Homebrew tap
-        if: ${{ env.IS_STABLE == 'true' }}
+        if: ${{ github.repository == 'chen08209/FlClash' && env.IS_STABLE == 'true' }}
         uses: cpina/github-action-push-to-another-repository@v1.7.2
         env:
           SSH_DEPLOY_KEY: ${{ secrets.HOMEBREW_SSH_DEPLOY_KEY }}
@@ -647,14 +653,14 @@ jobs:
           target-directory: /
 
       - name: Create Fdroid Source Dir
-        if: ${{ env.IS_STABLE == 'true' }}
+        if: ${{ github.repository == 'chen08209/FlClash' && env.IS_STABLE == 'true' }}
         run: |
           mkdir -p ./tmp
           apk=$(jq -er '.artifacts[] | select(.os == "android" and .arch == "arm64") | .name' dist/manifest.json)
           cp "./dist/$apk" ./tmp/
 
       - name: Push to fdroid repo
-        if: ${{ env.IS_STABLE == 'true' }}
+        if: ${{ github.repository == 'chen08209/FlClash' && env.IS_STABLE == 'true' }}
         uses: cpina/github-action-push-to-another-repository@v1.7.2
         env:
           SSH_DEPLOY_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
@@ -670,6 +676,7 @@ jobs:
 
       # After the packages, so a failed post holds none of them back.
       - name: Post to Telegram
+        if: github.repository == 'chen08209/FlClash'
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TAG: ${{ github.ref_name }}
@@ -677,6 +684,7 @@ jobs:
 
       # Runs last, so a failed cleanup holds back no announcement or package.
       - name: Delete superseded prereleases
+        if: github.repository == 'chen08209/FlClash'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

@@ -13,6 +13,11 @@ import 'package:fl_clash/plugins/app.dart';
 import 'package:fl_clash/state.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' show join;
+import 'package:xml/xml.dart';
+
+final class _NoPublishedRelease extends FormatException {
+  const _NoPublishedRelease(super.message);
+}
 
 class Request {
   static const _releasesPerPage = 100;
@@ -126,9 +131,15 @@ class Request {
     }
   }
 
-  /// Null when this build is current; throws when GitHub cannot be asked.
+  /// Null when this build is current or no release is published for its channel.
+  /// Network and unexpected response failures still surface to the caller.
   Future<Map<String, dynamic>?> checkForUpdate(UpdateChannel channel) async {
-    final release = await newestRelease(channel);
+    final Map<String, dynamic> release;
+    try {
+      release = await newestRelease(channel);
+    } on _NoPublishedRelease {
+      return null;
+    }
     final remote = ReleaseVersion.tryParse(release['tag_name'] as String);
     final installed = installedReleaseVersion(globalState.packageInfo.version);
     return remote != null && remote > installed ? release : null;
@@ -169,21 +180,25 @@ class Request {
           break;
         }
       }
-      throw FormatException('No ${appReleaseLine.name} release in the list');
-    } on DioException catch (error) {
-      commonPrint.log(
-        'release list API failed: ${compactError(error)}',
-        logLevel: LogLevel.warning,
+      throw const _NoPublishedRelease(
+        'No matching published release in the list',
       );
+    } on DioException {
+      // A successful fallback (including an empty feed) is not an error.
     }
     final response = await dio.get<String>(
       'https://github.com/$repository/releases.atom',
-      options: Options(responseType: ResponseType.plain),
+      options: Options(
+        responseType: ResponseType.plain,
+        followRedirects: false,
+      ),
     );
     for (final tag in _candidates(releaseTagsOfFeed(response.data ?? ''))) {
       if (await _hasChecksums(tag)) return {'tag_name': tag};
     }
-    throw FormatException('No ${appReleaseLine.name} release in the feed');
+    throw const _NoPublishedRelease(
+      'No matching published release in the feed',
+    );
   }
 
   Iterable<String> _candidates(Iterable<String> tags) =>
@@ -197,14 +212,25 @@ class Request {
   /// The feed lists bare tags too, such as one whose release is still building.
   Future<bool> _hasChecksums(String tag) async {
     try {
-      await dio.headUri<void>(
+      final response = await dio.headUri<void>(
         releaseAssetUri(tag, updateChecksumsName(tag)),
         options: Options(
           followRedirects: false,
           validateStatus: (status) => status != null && status < 400,
         ),
       );
-      return true;
+      if (response.statusCode == HttpStatus.ok) return true;
+      final target = Uri.tryParse(
+        response.headers.value(HttpHeaders.locationHeader) ?? '',
+      );
+      // GitHub serves release asset bytes on its CDN; never follow a redirect
+      // during discovery or treat an unrelated destination as an uploaded file.
+      return target != null &&
+          target.scheme == 'https' &&
+          target.port == 443 &&
+          target.userInfo.isEmpty &&
+          (target.host == 'release-assets.githubusercontent.com' ||
+              target.host == 'objects.githubusercontent.com');
     } on DioException catch (error) {
       if (error.response?.statusCode == HttpStatus.notFound) return false;
       rethrow;
@@ -220,25 +246,32 @@ class Request {
       );
       return response.data!;
     } on DioException catch (error) {
-      commonPrint.log(
-        'latest release API failed: ${compactError(error)}',
-        logLevel: LogLevel.warning,
-      );
+      if (error.response?.statusCode == HttpStatus.notFound) {
+        throw const _NoPublishedRelease('No stable release in the repository');
+      }
+      // A valid web fallback is not a failed update check.
     }
-    final response = await dio.get<void>(
-      'https://github.com/$repository/releases/latest',
+    final page = Uri.https('github.com', '/$repository/releases/latest');
+    final response = await dio.getUri<void>(
+      page,
       options: Options(
         followRedirects: false,
         validateStatus: (status) => status != null && status < 400,
       ),
     );
     final location = response.headers.value(HttpHeaders.locationHeader);
-    final segments = Uri.tryParse(location ?? '')?.pathSegments ?? const [];
-    final tagIndex = segments.indexOf('tag') + 1;
-    if (tagIndex == 0 || tagIndex >= segments.length) {
-      throw FormatException('No release tag in the redirect', location);
+    final target = page.resolve(location ?? '');
+    if (_isOwnReleasePage(target) && target.pathSegments.length == 3) {
+      throw const _NoPublishedRelease('No stable release on the release page');
     }
-    return {'tag_name': segments[tagIndex]};
+    final tag = _tagOnOwnReleasePage(target);
+    if (tag == null) {
+      throw FormatException(
+        'No release tag for $repository in the redirect',
+        location,
+      );
+    }
+    return {'tag_name': tag};
   }
 
   Future<String> downloadVerifiedRelease({
@@ -307,15 +340,48 @@ Future<T> _releaseFile<T>(String name, Future<T> Function() fetch) async {
 
 final request = Request();
 
-final _feedLink = RegExp(r'<link\b[^>]*\bhref="([^"]+)"');
+bool _isOwnReleasePage(Uri uri) =>
+    uri.scheme == 'https' &&
+    uri.host == 'github.com' &&
+    uri.port == 443 &&
+    uri.userInfo.isEmpty &&
+    uri.pathSegments.take(3).join('/').toLowerCase() ==
+        '$repository/releases'.toLowerCase();
+
+String? _tagOnOwnReleasePage(Uri uri) {
+  final path = uri.pathSegments;
+  return _isOwnReleasePage(uri) &&
+          path.length == 5 &&
+          path[3] == 'tag' &&
+          path.last.isNotEmpty
+      ? path.last
+      : null;
+}
 
 @visibleForTesting
 Iterable<String> releaseTagsOfFeed(String feed) sync* {
-  for (final match in _feedLink.allMatches(feed)) {
-    final segments = Uri.tryParse(match[1]!)?.pathSegments ?? const [];
-    final tagIndex = segments.indexOf('tag') + 1;
-    if (tagIndex > 0 && tagIndex < segments.length) {
-      yield segments[tagIndex];
+  const atom = 'http://www.w3.org/2005/Atom';
+  final XmlElement root;
+  try {
+    root = XmlDocument.parse(feed).rootElement;
+  } on XmlException {
+    throw const FormatException('Invalid GitHub release feed');
+  } on StateError {
+    throw const FormatException('Missing GitHub release feed');
+  }
+  if (root.name.local != 'feed' || root.namespaceUri != atom) {
+    throw const FormatException('GitHub release response is not an Atom feed');
+  }
+  for (final entry in root.childElements) {
+    if (entry.name.local != 'entry' || entry.namespaceUri != atom) continue;
+    for (final link in entry.childElements) {
+      if (link.name.local != 'link' ||
+          link.namespaceUri != atom ||
+          link.getAttribute('rel') != 'alternate')
+        continue;
+      final uri = Uri.tryParse(link.getAttribute('href') ?? '');
+      final tag = uri == null ? null : _tagOnOwnReleasePage(uri);
+      if (tag != null) yield tag;
     }
   }
 }

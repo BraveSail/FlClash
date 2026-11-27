@@ -63,6 +63,26 @@ Future<void> _writeRelease(String directory) async {
 }
 
 void main() {
+  test('fork tags can publish without pushing to upstream package feeds', () {
+    final workflow = loadYaml(_read('.github/workflows/build.yaml')) as YamlMap;
+    final jobs = workflow['jobs'] as YamlMap;
+    final predicate = jobs['version']['if'] as String;
+    expect(predicate, contains("github.repository == 'BraveSail/FlClash'"));
+    expect(predicate, contains("startsWith(github.ref, 'refs/tags/v')"));
+    expect(jobs['build']['if'], predicate);
+    final steps = (jobs['upload']['steps'] as YamlList).cast<YamlMap>();
+    for (final name in [
+      'Push to Homebrew tap',
+      'Push to fdroid repo',
+      'Post to Telegram',
+    ]) {
+      expect(
+        steps.singleWhere((step) => step['name'] == name)['if'],
+        contains("github.repository == 'chen08209/FlClash'"),
+      );
+    }
+  });
+
   test('reads the names the site asks for from its script', () {
     expect(siteAssetNames(_read(siteScript), _version), [
       'FlClash-0.9.5-android-arm64.apk',
