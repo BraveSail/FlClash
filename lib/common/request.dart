@@ -377,8 +377,9 @@ Iterable<String> releaseTagsOfFeed(String feed) sync* {
     for (final link in entry.childElements) {
       if (link.name.local != 'link' ||
           link.namespaceUri != atom ||
-          link.getAttribute('rel') != 'alternate')
+          link.getAttribute('rel') != 'alternate') {
         continue;
+      }
       final uri = Uri.tryParse(link.getAttribute('href') ?? '');
       final tag = uri == null ? null : _tagOnOwnReleasePage(uri);
       if (tag != null) yield tag;
